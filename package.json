@@ -1,0 +1,11 @@
+{
+  "name": "class-record-collector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "체육수업 기록관리 시스템 1차 MVP",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check app/app.js && node --check server.mjs"
+  }
+}
