@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10213e">
+  <title>움직임 기록 | 장애물달리기</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <a class="brand" href="#" aria-label="학생 선택 화면으로 이동" data-action="home">
+        <span class="brand-mark" aria-hidden="true">↗</span>
+        <span>
+          <span class="brand-name">움직임 기록</span>
+          <span class="brand-context">체육수업 기록관리</span>
+        </span>
+      </a>
+      <div class="header-badge"><span class="status-dot" aria-hidden="true"></span>이 기기에 저장</div>
+    </header>
+
+    <main class="main-content">
+      <section class="screen screen--selection" data-screen="selection" aria-labelledby="selection-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>장애물달리기 · 1차 MVP</p>
+          <h1 id="selection-title">오늘의 기록을<br><span>빠르게 쌓아보세요.</span></h1>
+          <p class="hero-description">반과 조를 선택하고, 달릴 학생의 이름을 눌러<br class="desktop-break"> 바로 측정을 시작하세요.</p>
+        </div>
+
+        <div class="selection-toolbar">
+          <div class="selection-filter">
+            <div class="toolbar-heading">
+              <span class="section-label">반 선택</span>
+              <span class="toolbar-caption">수업 반을 먼저 선택하세요</span>
+            </div>
+            <div class="class-tabs" id="class-tabs" role="tablist" aria-label="반 선택"></div>
+          </div>
+          <div class="selection-filter">
+            <div class="toolbar-heading">
+              <span class="section-label">조 선택</span>
+              <span class="toolbar-caption" id="selected-class-caption">1반 수업</span>
+            </div>
+            <div class="group-tabs" id="group-tabs" role="tablist" aria-label="조 선택"></div>
+          </div>
+        </div>
+
+        <div class="list-heading">
+          <div>
+            <h2><span id="selected-class-label">1반</span> <span id="selected-group-label">남1조</span> 학생</h2>
+            <p>측정할 학생을 선택하세요.</p>
+          </div>
+          <div class="student-count"><strong id="group-count">0</strong><span>명 참여</span></div>
+        </div>
+
+        <div class="students-grid" id="students-grid" aria-live="polite"></div>
+        <div class="empty-state" id="empty-state" hidden>
+          <span class="empty-icon" aria-hidden="true">◎</span>
+          <strong>아직 이 조에 학생이 없어요.</strong>
+          <p>다른 조를 선택해 주세요.</p>
+        </div>
+
+        <footer class="screen-footer">
+          <span class="footer-lock" aria-hidden="true">▣</span>
+          <span>기록은 이 크롬북에 안전하게 자동 저장됩니다.</span>
+        </footer>
+      </section>
+
+      <section class="screen screen--timer" data-screen="timer" aria-labelledby="timer-title" hidden>
+        <div class="screen-topbar">
+          <button class="back-button" type="button" data-action="back-to-selection" aria-label="학생 선택으로 돌아가기">
+            <span aria-hidden="true">←</span> 학생 선택
+          </button>
+          <span class="step-indicator">측정 <strong>1 / 2</strong></span>
+        </div>
+
+        <div class="timer-layout">
+          <div class="timer-intro">
+            <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>장애물달리기 측정</p>
+            <div class="student-identity student-identity--large">
+              <span class="student-avatar" id="timer-avatar" aria-hidden="true">김</span>
+              <div>
+                <p class="identity-overline" id="timer-student-meta">1반 · 남1조 · 1번</p>
+                <h1 id="timer-title">김민수</h1>
+              </div>
+            </div>
+            <p class="timer-instruction" id="timer-instruction">출발 준비가 되면 START를 눌러주세요.</p>
+          </div>
+
+          <div class="timer-card" aria-label="장애물달리기 타이머">
+            <div class="timer-status" id="timer-status"><span class="status-pip" aria-hidden="true"></span>측정 전</div>
+            <output class="timer-display" id="timer-display" aria-live="off">00.00<small>초</small></output>
+            <div class="timer-actions">
+              <button class="action-button action-button--start" type="button" id="start-button" data-action="start-timer">
+                <span class="button-icon" aria-hidden="true">▶</span>START
+              </button>
+              <button class="action-button action-button--stop" type="button" id="stop-button" data-action="stop-timer" disabled>
+                <span class="button-icon" aria-hidden="true">■</span>STOP
+              </button>
+            </div>
+            <p class="timer-note"><span aria-hidden="true">i</span> 측정 중에는 학생을 변경할 수 없어요.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen screen--confirm" data-screen="confirm" aria-labelledby="confirm-title" hidden>
+        <div class="screen-topbar">
+          <span class="step-indicator step-indicator--accent">기록 확인 <strong>2 / 2</strong></span>
+        </div>
+
+        <div class="confirm-layout">
+          <div class="confirm-copy">
+            <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>측정 완료</p>
+            <h1 id="confirm-title">이 기록을<br><span>저장할까요?</span></h1>
+            <p>저장하면 학생의 연습 횟수와<br>최고 기록에 바로 반영됩니다.</p>
+          </div>
+
+          <div class="confirm-card">
+            <div class="confirm-card-header">
+              <div class="student-identity">
+                <span class="student-avatar student-avatar--small" id="confirm-avatar" aria-hidden="true">김</span>
+                <div>
+                <p class="identity-overline" id="confirm-student-meta">1반 · 남1조 · 1번</p>
+                  <h2 id="confirm-student-name">김민수</h2>
+                </div>
+              </div>
+              <span class="confirm-check" aria-hidden="true">✓</span>
+            </div>
+            <div class="record-result">
+              <span>측정 기록</span>
+              <strong id="confirm-time">00.00<small>초</small></strong>
+            </div>
+            <dl class="record-details">
+              <div><dt>자동 회차</dt><dd id="confirm-attempt">1회차</dd></div>
+              <div><dt>활동</dt><dd>장애물달리기</dd></div>
+            </dl>
+            <div class="confirm-actions">
+              <button class="secondary-button" type="button" data-action="cancel-record">취소</button>
+              <button class="primary-button" type="button" id="save-button" data-action="save-record"><span aria-hidden="true">✓</span> 저장</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen screen--records" data-screen="records" aria-labelledby="records-title" hidden>
+        <div class="screen-topbar">
+          <button class="back-button" type="button" data-action="back-to-selection">
+            <span aria-hidden="true">←</span> 학생 선택
+          </button>
+          <span class="step-indicator">학생별 기록</span>
+        </div>
+
+        <div class="records-header">
+          <div>
+            <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>기록 조회</p>
+            <h1 id="records-title">김민수의 기록</h1>
+            <p id="records-student-meta">1반 · 남1조 · 1번 · 장애물달리기</p>
+          </div>
+          <div class="record-summary-badge"><strong id="records-count">0</strong><span>회 측정</span></div>
+        </div>
+
+        <div class="records-overview">
+          <div><span>연습 횟수</span><strong id="records-attempts">0<span>회</span></strong></div>
+          <div><span>최고 기록</span><strong id="records-best">—<span>초</span></strong></div>
+          <div><span>최근 기록</span><strong id="records-latest">—<span>초</span></strong></div>
+        </div>
+
+        <div class="records-table-wrap">
+          <table class="records-table">
+            <caption class="visually-hidden">학생 측정 기록 목록</caption>
+            <thead><tr><th scope="col">회차</th><th scope="col">측정 기록</th><th scope="col">측정 일시</th></tr></thead>
+            <tbody id="records-list"></tbody>
+          </table>
+          <div class="records-empty" id="records-empty" hidden>
+            <span aria-hidden="true">◌</span>
+            <strong>아직 저장된 기록이 없어요.</strong>
+            <p>학생을 선택해 첫 기록을 남겨보세요.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  </div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
