@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#10213e">
+<title>랭킹 전광판 | 오래달리기</title>
+<style>
+  :root {
+    --navy-950: #0d1a31;
+    --navy-900: #10213e;
+    --navy-800: #173158;
+    --navy-700: #274878;
+    --blue-500: #4f8cff;
+    --blue-100: #eaf1ff;
+    --mint-500: #3dd8b0;
+    --mint-100: #e3faf4;
+    --orange-500: #ff9c5f;
+    --orange-100: #fff0e6;
+    --gold-500: #ffbf3f;
+    --gold-100: #fff5e0;
+    --ink: #17233a;
+    --muted: #758199;
+    --line: #e5eaf2;
+    --paper: #ffffff;
+    --canvas: #f6f8fc;
+    --shadow: 0 18px 50px rgba(23, 49, 88, 0.09);
+    --radius-lg: 24px;
+    --radius-md: 16px;
+    --radius-sm: 10px;
+  }
+  * { box-sizing: border-box; }
+  html { min-width: 320px; background: var(--canvas); }
+  body {
+    margin: 0;
+    min-width: 320px;
+    color: var(--ink);
+    background: var(--canvas);
+    font-family: 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { -webkit-tap-highlight-color: transparent; }
+
+  .board-header {
+    min-height: 80px;
+    padding: 0 max(28px, calc((100vw - 1280px) / 2));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    color: #fff;
+    background: var(--navy-900);
+  }
+  .brand { display: inline-flex; align-items: center; gap: 11px; color: inherit; text-decoration: none; }
+  .brand-mark {
+    width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px;
+    color: var(--navy-900); background: var(--gold-500); font-size: 18px; font-weight: 800; line-height: 1;
+  }
+  .brand-name { display: block; font-size: 15px; font-weight: 800; letter-spacing: -0.03em; }
+  .brand-context { display: block; margin-top: 1px; color: #a7b7d0; font-size: 11px; font-weight: 500; }
+
+  .header-right { display: flex; align-items: center; gap: 22px; }
+  .back-link { display: inline-flex; align-items: center; gap: 6px; color: #bbcadf; font-size: 12px; font-weight: 700; text-decoration: none; }
+  .back-link:hover { color: #fff; }
+  .clock-block { text-align: right; }
+  .clock { font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 20px; font-weight: 500; letter-spacing: -0.04em; }
+  .updated-at { margin-top: 2px; color: #8ea2c1; font-size: 11px; }
+
+  .main-content { width: min(1280px, calc(100% - 48px)); margin: 0 auto; padding: 36px 0 60px; }
+
+  .controls {
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+    padding: 17px 22px; border: 1px solid var(--line); border-radius: var(--radius-md);
+    background: var(--paper); box-shadow: 0 8px 30px rgba(23, 49, 88, 0.04);
+  }
+  .class-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .tab-btn {
+    min-width: 54px; min-height: 38px; padding: 0 14px; border: 0; border-radius: 9px;
+    color: var(--muted); background: transparent; font-size: 13px; font-weight: 700; letter-spacing: -0.04em;
+    cursor: pointer; transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+  }
+  .tab-btn:hover { color: var(--navy-900); background: var(--blue-100); }
+  .tab-btn:active { transform: scale(0.97); }
+  .tab-btn.is-selected { color: #fff; background: var(--navy-900); }
+
+  .mode-switch { display: flex; gap: 6px; padding: 4px; border-radius: 11px; background: var(--canvas); }
+  .mode-btn { border: 0; background: transparent; color: var(--muted); padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 800; cursor: pointer; transition: color 160ms ease, background 160ms ease; }
+  .mode-btn.is-selected { color: var(--navy-900); background: var(--gold-500); }
+
+  .gender-columns { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .gender-column { min-width: 0; }
+  .gender-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid var(--line); }
+  .gender-heading h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.05em; }
+  .gender-column.male .gender-heading h2 { color: var(--blue-500); }
+  .gender-column.female .gender-heading h2 { color: #e8618f; }
+  .gender-count { color: var(--muted); font-size: 12px; font-weight: 600; }
+
+  .podium { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end; gap: 10px; margin-bottom: 24px; }
+  .podium-item { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; }
+  .podium-item.is-empty { visibility: hidden; }
+  .podium-medal { font-size: 22px; line-height: 1; margin-bottom: 6px; }
+  .podium-avatar {
+    width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%;
+    color: var(--blue-500); background: var(--blue-100); font-size: 19px; font-weight: 800;
+    border: 3px solid var(--paper); box-shadow: 0 6px 16px rgba(23, 49, 88, 0.12); margin-bottom: 9px;
+  }
+  .podium-name { color: var(--navy-900); font-size: 14px; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+  .podium-meta { color: var(--muted); font-size: 10px; font-weight: 500; margin: 0 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+  .podium-value { font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-weight: 500; letter-spacing: -0.03em; color: var(--navy-900); font-size: 16px; }
+  .podium-value small { margin-left: 2px; font-family: 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; font-size: 10px; color: var(--muted); font-weight: 600; }
+  .podium-base {
+    width: 100%; margin-top: 10px; border-radius: 12px 12px 0 0; display: flex; align-items: flex-start;
+    justify-content: center; padding-top: 8px; font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 13px; font-weight: 800;
+  }
+  .podium-1 .podium-avatar { width: 62px; height: 62px; font-size: 23px; border-color: var(--gold-500); }
+  .podium-1 .podium-value { font-size: 21px; }
+  .podium-1 .podium-base { height: 92px; background: linear-gradient(180deg, var(--gold-100), #ffe6ad); color: #9a6a00; }
+  .podium-2 .podium-avatar { border-color: #cfd8e3; }
+  .podium-2 .podium-base { height: 66px; background: linear-gradient(180deg, #f1f3f7, #dde3ec); color: #5b6779; }
+  .podium-3 .podium-avatar { border-color: var(--orange-500); }
+  .podium-3 .podium-base { height: 52px; background: linear-gradient(180deg, var(--orange-100), #ffd3ac); color: #8a4c1c; }
+
+  .rest-heading { margin: 4px 0 12px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: -0.02em; }
+  .rank-list { display: grid; gap: 8px; }
+  .rank-row {
+    display: grid; grid-template-columns: 34px 36px 1fr auto; align-items: center; gap: 12px;
+    padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper);
+    box-shadow: 0 6px 18px rgba(23, 49, 88, 0.03);
+  }
+  .rank-number { color: var(--muted); font-size: 15px; font-weight: 800; text-align: center; font-family: 'Cascadia Mono', 'Roboto Mono', monospace; }
+  .avatar {
+    width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px;
+    color: var(--blue-500); background: var(--blue-100); font-size: 13px; font-weight: 800;
+  }
+  .gender-column.female .avatar { color: #e8618f; background: #ffe9f1; }
+  .gender-column.female .podium-avatar { color: #e8618f; background: #ffe9f1; }
+
+  .student-info { min-width: 0; }
+  .student-name { margin: 0 0 1px; color: var(--navy-900); font-size: 14px; font-weight: 800; letter-spacing: -0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .student-meta { color: var(--muted); font-size: 10.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .stat-block { text-align: right; }
+  .stat-value { color: var(--navy-900); font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 17px; font-weight: 500; letter-spacing: -0.03em; }
+  .stat-value small { margin-left: 2px; color: var(--muted); font-family: 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; font-size: 10px; font-weight: 600; }
+  .stat-label { margin-top: 1px; color: var(--muted); font-size: 10px; font-weight: 700; }
+
+  .empty-board { padding: 40px 16px; border: 1px dashed #cdd6e4; border-radius: var(--radius-md); color: var(--muted); text-align: center; font-size: 13px; }
+  .error-banner { padding: 14px 18px; border: 1px solid #f7c9c9; border-radius: var(--radius-sm); background: #fff3f3; color: #d1454a; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
+  .loading-banner { padding: 14px 0; color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 860px) {
+    .gender-columns { grid-template-columns: 1fr; gap: 32px; }
+  }
+  @media (max-width: 600px) {
+    .board-header { padding: 0 18px; min-height: 68px; }
+    .header-right { gap: 12px; }
+    .main-content { width: min(100% - 32px, 600px); padding: 28px 0 45px; }
+    .controls { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+  <header class="board-header">
+    <a class="brand" href="./index.html">
+      <span class="brand-mark" aria-hidden="true">🏆</span>
+      <span>
+        <span class="brand-name">랭킹 전광판</span>
+        <span class="brand-context">오래달리기 · 실시간 순위</span>
+      </span>
+    </a>
+    <div class="header-right">
+      <a class="back-link" href="./index.html"><span aria-hidden="true">←</span> 학생 선택으로</a>
+      <div class="clock-block">
+        <div class="clock" id="clock">--:--:--</div>
+        <div class="updated-at" id="updated-at">불러오는 중...</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="controls">
+      <div class="class-tabs" id="class-tabs" role="tablist" aria-label="반 선택"></div>
+      <div class="mode-switch" role="tablist" aria-label="랭킹 기준">
+        <button class="mode-btn is-selected" type="button" data-mode="best">최고기록 랭킹</button>
+        <button class="mode-btn" type="button" data-mode="attempts">도전횟수 랭킹</button>
+      </div>
+    </div>
+
+    <div id="banner"></div>
+
+    <div class="gender-columns">
+      <section class="gender-column male">
+        <div class="gender-heading">
+          <h2>🔵 남학생 랭킹</h2>
+          <span class="gender-count" id="male-count">0명</span>
+        </div>
+        <div class="podium" id="podium-male"></div>
+        <p class="rest-heading" id="rest-heading-male" hidden>4등부터</p>
+        <div class="rank-list" id="rank-list-male"></div>
+      </section>
+
+      <section class="gender-column female">
+        <div class="gender-heading">
+          <h2>🔴 여학생 랭킹</h2>
+          <span class="gender-count" id="female-count">0명</span>
+        </div>
+        <div class="podium" id="podium-female"></div>
+        <p class="rest-heading" id="rest-heading-female" hidden>4등부터</p>
+        <div class="rank-list" id="rank-list-female"></div>
+      </section>
+    </div>
+  </main>
+
+<script>
+(() => {
+  'use strict';
+
+  const SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbw5mlmLxwSTXB7q7lsbqlGjWfkU9aTUwmwFSKeiK_Y9OyDX-eqx51AAkayE6qtAkCQS/exec';
+  const REFRESH_INTERVAL_MS = 10000;
+  const ACTIVITY_TYPE = 'long_run';
+
+  const classTabsEl = document.getElementById('class-tabs');
+  const updatedAtEl = document.getElementById('updated-at');
+  const bannerEl = document.getElementById('banner');
+  const clockEl = document.getElementById('clock');
+
+  const columns = {
+    male: {
+      podiumEl: document.getElementById('podium-male'),
+      restHeadingEl: document.getElementById('rest-heading-male'),
+      rankListEl: document.getElementById('rank-list-male'),
+      countEl: document.getElementById('male-count')
+    },
+    female: {
+      podiumEl: document.getElementById('podium-female'),
+      restHeadingEl: document.getElementById('rest-heading-female'),
+      rankListEl: document.getElementById('rank-list-female'),
+      countEl: document.getElementById('female-count')
+    }
+  };
+
+  const state = {
+    students: [],
+    records: [],
+    availableClasses: [],
+    selectedClass: 'all',
+    mode: 'best'
+  };
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>'"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
+  }
+
+  // 오래달리기는 분:초 형식으로 표시합니다.
+  function formatDuration(seconds) {
+    const total = Math.max(0, Math.round(Number(seconds) || 0));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function getGender(student) {
+    const team = String(student.group_or_team || '');
+    if (team.startsWith('남')) return 'male';
+    if (team.startsWith('여')) return 'female';
+    return null;
+  }
+
+  function tickClock() {
+    clockEl.textContent = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  }
+
+  function renderClassTabs() {
+    const tabs = ['all', ...state.availableClasses];
+    classTabsEl.innerHTML = tabs.map((cls) => {
+      const label = cls === 'all' ? '전체' : `${cls}반`;
+      const selected = cls === state.selectedClass;
+      return `<button class="tab-btn${selected ? ' is-selected' : ''}" type="button" data-class="${cls}" aria-selected="${selected}">${label}</button>`;
+    }).join('');
+  }
+
+  function computeStudentStats(gender) {
+    const recordsByStudent = new Map();
+    state.records
+      .filter((r) => r.activity_type === ACTIVITY_TYPE)
+      .forEach((r) => {
+        const list = recordsByStudent.get(String(r.student_id)) || [];
+        list.push(r);
+        recordsByStudent.set(String(r.student_id), list);
+      });
+
+    return state.students
+      .filter((s) => state.selectedClass === 'all' || Number(s.class) === Number(state.selectedClass))
+      .filter((s) => getGender(s) === gender)
+      .map((s) => {
+        const list = recordsByStudent.get(String(s.student_id)) || [];
+        const times = list.map((r) => Number(r.record_seconds));
+        const best = times.length ? Math.min(...times) : null;
+        return { student: s, attempts: list.length, best };
+      });
+  }
+
+  function primaryValueOf(entry) {
+    return state.mode === 'best'
+      ? (entry.best === null ? '—' : formatDuration(entry.best))
+      : `${entry.attempts}<small>회</small>`;
+  }
+
+  function renderPodium(podiumEl, top3) {
+    if (top3.length === 0) {
+      podiumEl.innerHTML = '';
+      return;
+    }
+    const order = [top3[1], top3[0], top3[2]];
+    const medals = ['🥈', '🥇', '🥉'];
+    const positionClasses = ['podium-2', 'podium-1', 'podium-3'];
+    const positionLabels = ['2', '1', '3'];
+
+    podiumEl.innerHTML = order.map((entry, i) => {
+      if (!entry) {
+        return `<div class="podium-item ${positionClasses[i]} is-empty"></div>`;
+      }
+      const s = entry.student;
+      return `
+        <div class="podium-item ${positionClasses[i]}">
+          <div class="podium-medal">${medals[i]}</div>
+          <div class="podium-avatar" aria-hidden="true">${escapeHtml(String(s.name).slice(0, 1))}</div>
+          <p class="podium-name">${escapeHtml(s.name)}</p>
+          <p class="podium-meta">${escapeHtml(s.class)}반 · ${escapeHtml(s.number)}번</p>
+          <div class="podium-value">${primaryValueOf(entry)}</div>
+          <div class="podium-base">${positionLabels[i]}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderRestList(rankListEl, restHeadingEl, rest, startRank) {
+    if (rest.length === 0) {
+      restHeadingEl.hidden = true;
+      rankListEl.innerHTML = '';
+      return;
+    }
+    restHeadingEl.hidden = false;
+    restHeadingEl.textContent = `${startRank}등부터`;
+
+    rankListEl.innerHTML = rest.map((entry, index) => {
+      const rank = startRank + index;
+      const s = entry.student;
+
+      return `
+        <div class="rank-row">
+          <div class="rank-number">${rank}</div>
+          <div class="avatar" aria-hidden="true">${escapeHtml(String(s.name).slice(0, 1))}</div>
+          <div class="student-info">
+            <p class="student-name">${escapeHtml(s.name)}</p>
+            <p class="student-meta">${escapeHtml(s.class)}반 · ${escapeHtml(s.number)}번</p>
+          </div>
+          <div class="stat-block">
+            <div class="stat-value">${primaryValueOf(entry)}</div>
+            <div class="stat-label">${state.mode === 'best' ? '최고기록' : '도전횟수'}</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderGenderColumn(gender) {
+    const col = columns[gender];
+    const stats = computeStudentStats(gender);
+    col.countEl.textContent = `${stats.length}명`;
+
+    let sorted;
+    if (state.mode === 'best') {
+      const withRecord = stats.filter((s) => s.best !== null).sort((a, b) => a.best - b.best);
+      const withoutRecord = stats.filter((s) => s.best === null);
+      sorted = [...withRecord, ...withoutRecord];
+    } else {
+      sorted = [...stats].sort((a, b) => b.attempts - a.attempts);
+    }
+
+    if (sorted.length === 0) {
+      col.podiumEl.innerHTML = '';
+      col.restHeadingEl.hidden = true;
+      col.rankListEl.innerHTML = '<div class="empty-board">해당 조건에 학생이 없어요.</div>';
+      return;
+    }
+
+    const top3 = sorted.slice(0, 3);
+    const rest = sorted.slice(3);
+    renderPodium(col.podiumEl, top3);
+    renderRestList(col.rankListEl, col.restHeadingEl, rest, 4);
+  }
+
+  function renderBoard() {
+    renderGenderColumn('male');
+    renderGenderColumn('female');
+  }
+
+  async function fetchJson(url) {
+    const response = await fetch(url);
+    const result = await response.json();
+    if (!result.ok) {
+      throw new Error(result.error && result.error.message ? result.error.message : '데이터를 불러오지 못했습니다.');
+    }
+    return result.data;
+  }
+
+  async function loadData() {
+    try {
+      const [students, records] = await Promise.all([
+        fetchJson(`${SHEETS_ENDPOINT}?action=students`),
+        fetchJson(`${SHEETS_ENDPOINT}?action=records`)
+      ]);
+      state.students = students;
+      state.records = records;
+      state.availableClasses = [...new Set(students.map((s) => Number(s.class)))]
+        .filter((c) => Number.isInteger(c))
+        .sort((a, b) => a - b);
+      bannerEl.innerHTML = '';
+      renderClassTabs();
+      renderBoard();
+      updatedAtEl.textContent = `마지막 업데이트 ${new Date().toLocaleTimeString('ko-KR', { hour12: false })}`;
+    } catch (error) {
+      console.error('랭킹 데이터를 불러오지 못했습니다.', error);
+      bannerEl.innerHTML = `<div class="error-banner">데이터를 불러오지 못했어요. 인터넷 연결을 확인해 주세요. (${escapeHtml(error.message)})</div>`;
+    }
+  }
+
+  classTabsEl.addEventListener('click', (event) => {
+    const btn = event.target.closest('.tab-btn');
+    if (!btn) return;
+    state.selectedClass = btn.dataset.class === 'all' ? 'all' : Number(btn.dataset.class);
+    renderClassTabs();
+    renderBoard();
+  });
+
+  document.querySelector('.mode-switch').addEventListener('click', (event) => {
+    const btn = event.target.closest('.mode-btn');
+    if (!btn) return;
+    state.mode = btn.dataset.mode;
+    document.querySelectorAll('.mode-btn').forEach((b) => b.classList.toggle('is-selected', b === btn));
+    renderBoard();
+  });
+
+  bannerEl.innerHTML = '<div class="loading-banner">데이터를 불러오는 중이에요...</div>';
+  tickClock();
+  setInterval(tickClock, 1000);
+  loadData();
+  setInterval(loadData, REFRESH_INTERVAL_MS);
+})();
+</script>
+</body>
+</html>
