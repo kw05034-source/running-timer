@@ -216,7 +216,7 @@
     const latest = studentRecords.length ? studentRecords[studentRecords.length - 1].record_seconds : null;
 
     document.getElementById('records-title').textContent = `${student.name}의 기록`;
-    document.getElementById('records-student-meta').textContent = `${student.class}반 · ${student.group_or_team} · ${student.number}번 · 장애물달리기`;
+    document.getElementById('records-student-meta').textContent = `${student.class}반 · ${student.group_or_team} · ${student.number}번 · 달리기`;
     document.getElementById('records-count').textContent = studentRecords.length;
     document.getElementById('records-attempts').innerHTML = `${studentRecords.length}<span>회</span>`;
     document.getElementById('records-best').innerHTML = best === null ? '—<span>초</span>' : `${formatSeconds(best)}<span>초</span>`;
