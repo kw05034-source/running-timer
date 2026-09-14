@@ -41,6 +41,43 @@
   let records = readRecords();
   let toastTimer = null;
 
+  // ---- 화면 꺼짐 방지 (Wake Lock) ----
+  // 달리는 동안 크롬북 화면이 자동으로 꺼지거나 잠자기 모드로 들어가지 않도록 붙잡아 둡니다.
+  // 크롬(안드로이드/크롬북 포함) 최신 버전에서 지원되며, 지원하지 않는 브라우저에서는 조용히 무시됩니다.
+  let wakeLock = null;
+
+  async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => {
+        wakeLock = null;
+      });
+    } catch (error) {
+      // 배터리 절약 모드 등으로 요청이 거부될 수 있습니다. 측정 자체에는 영향이 없으므로 조용히 넘어갑니다.
+      console.warn('화면 꺼짐 방지 요청에 실패했습니다.', error);
+    }
+  }
+
+  async function releaseWakeLock() {
+    if (!wakeLock) return;
+    try {
+      await wakeLock.release();
+    } catch (error) {
+      // 이미 해제된 경우 등은 무시합니다.
+    } finally {
+      wakeLock = null;
+    }
+  }
+
+  // 화면을 껐다가 다시 켰을 때(예: 잠깐 다른 화면을 봤다가 돌아왔을 때), 아직 측정 중이라면
+  // 화면 꺼짐 방지를 다시 걸어줍니다.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.timerStatus === 'running' && !wakeLock) {
+      requestWakeLock();
+    }
+  });
+
   function readSelectedClass() {
     const storedClass = Number.parseInt(localStorage.getItem(CLASS_STORAGE_KEY), 10);
     return availableClasses.includes(storedClass) ? storedClass : (availableClasses[0] ?? 1);
@@ -247,6 +284,7 @@
     if (state.timerStatus !== 'idle' || !state.selectedStudentId) return;
     state.timerStatus = 'running';
     state.startedAt = performance.now();
+    requestWakeLock();
     renderTimer();
     state.timerId = window.setInterval(() => {
       if (state.timerStatus !== 'running') return;
@@ -262,6 +300,7 @@
     const student = getStudent(state.selectedStudentId);
     const attemptNo = getStudentRecords(state.selectedStudentId).length + 1;
     state.timerStatus = 'stopped';
+    releaseWakeLock();
     state.pendingRecord = {
       timestamp: new Date().toISOString(),
       student_id: student.student_id,
@@ -281,6 +320,7 @@
   function resetToSelection(message) {
     window.clearInterval(state.timerId);
     state.timerId = null;
+    releaseWakeLock();
     state.screen = 'selection';
     state.selectedStudentId = null;
     state.recordsStudentId = null;
