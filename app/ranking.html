@@ -149,6 +149,57 @@
   .list-heading h1 { margin: 0; color: var(--navy-900); font-size: clamp(28px, 3.4vw, 40px); font-weight: 800; letter-spacing: -0.06em; }
   .list-heading p { margin: 6px 0 0; color: var(--muted); font-size: 13px; letter-spacing: -0.03em; }
 
+  .podium {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    align-items: end;
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .podium-item { display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .podium-item.is-empty { visibility: hidden; }
+  .podium-medal { font-size: 30px; line-height: 1; margin-bottom: 8px; }
+  .podium-avatar {
+    width: 68px;
+    height: 68px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--blue-500);
+    background: var(--blue-100);
+    font-size: 26px;
+    font-weight: 800;
+    border: 3px solid var(--paper);
+    box-shadow: 0 6px 18px rgba(23, 49, 88, 0.12);
+    margin-bottom: 12px;
+  }
+  .podium-name { color: var(--navy-900); font-size: 17px; font-weight: 800; letter-spacing: -0.04em; margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+  .podium-meta { color: var(--muted); font-size: 11px; font-weight: 500; margin: 0 0 10px; }
+  .podium-value { font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-weight: 500; letter-spacing: -0.04em; color: var(--navy-900); }
+  .podium-value small { margin-left: 3px; font-family: 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; font-size: 11px; color: var(--muted); font-weight: 600; }
+  .podium-base {
+    width: 100%;
+    margin-top: 14px;
+    border-radius: 14px 14px 0 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 10px;
+    font-family: 'Cascadia Mono', 'Roboto Mono', monospace;
+    font-size: 15px;
+    font-weight: 800;
+  }
+  .podium-1 .podium-avatar { width: 84px; height: 84px; font-size: 32px; border-color: var(--gold-500); }
+  .podium-1 .podium-value { font-size: 30px; }
+  .podium-1 .podium-base { height: 128px; background: linear-gradient(180deg, var(--gold-100), #ffe6ad); color: #9a6a00; }
+  .podium-2 .podium-avatar { border-color: #cfd8e3; }
+  .podium-2 .podium-value { font-size: 22px; }
+  .podium-2 .podium-base { height: 92px; background: linear-gradient(180deg, #f1f3f7, #dde3ec); color: #5b6779; }
+  .podium-3 .podium-avatar { border-color: var(--orange-500); }
+  .podium-3 .podium-value { font-size: 22px; }
+  .podium-3 .podium-base { height: 72px; background: linear-gradient(180deg, var(--orange-100), #ffd3ac); color: #8a4c1c; }
+
+  .rest-heading { margin: 4px 0 14px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: -0.02em; }
   .rank-list { display: grid; gap: 10px; }
   .rank-row {
     display: grid;
@@ -222,6 +273,16 @@
     .controls { flex-direction: column; align-items: stretch; padding: 16px; }
     .rank-row { grid-template-columns: 40px 36px 1fr auto; }
     .stat-block.secondary { display: none; }
+    .podium { gap: 8px; }
+    .podium-name { max-width: 96px; font-size: 14px; }
+    .podium-meta { font-size: 10px; }
+    .podium-1 .podium-avatar { width: 64px; height: 64px; font-size: 24px; }
+    .podium-avatar { width: 52px; height: 52px; font-size: 18px; }
+    .podium-1 .podium-value { font-size: 22px; }
+    .podium-2 .podium-value, .podium-3 .podium-value { font-size: 16px; }
+    .podium-1 .podium-base { height: 90px; }
+    .podium-2 .podium-base { height: 66px; }
+    .podium-3 .podium-base { height: 50px; }
   }
 </style>
 </head>
@@ -260,6 +321,8 @@
     </div>
 
     <div id="banner"></div>
+    <div class="podium" id="podium"></div>
+    <p class="rest-heading" id="rest-heading" hidden>4등부터</p>
     <div class="rank-list" id="rank-list"></div>
   </main>
 
@@ -273,6 +336,8 @@
   const ACTIVITY_TYPE = 'obstacle_run';
 
   const classTabsEl = document.getElementById('class-tabs');
+  const podiumEl = document.getElementById('podium');
+  const restHeadingEl = document.getElementById('rest-heading');
   const rankListEl = document.getElementById('rank-list');
   const boardTitleEl = document.getElementById('board-title');
   const updatedAtEl = document.getElementById('updated-at');
@@ -328,6 +393,80 @@
       });
   }
 
+  function primaryValueOf(entry) {
+    return state.mode === 'best'
+      ? (entry.best === null ? '—' : `${formatSeconds(entry.best)}<small>초</small>`)
+      : `${entry.attempts}<small>회</small>`;
+  }
+
+  function secondaryOf(entry) {
+    return state.mode === 'best'
+      ? { label: '연습 횟수', value: `${entry.attempts}회` }
+      : { label: '최고기록', value: entry.best === null ? '—' : `${formatSeconds(entry.best)}초` };
+  }
+
+  function renderPodium(top3) {
+    if (top3.length === 0) {
+      podiumEl.innerHTML = '';
+      return;
+    }
+    // 화면 배치 순서: 2등 - 1등 - 3등
+    const order = [top3[1], top3[0], top3[2]];
+    const medals = ['🥈', '🥇', '🥉'];
+    const positionClasses = ['podium-2', 'podium-1', 'podium-3'];
+    const positionLabels = ['2', '1', '3'];
+
+    podiumEl.innerHTML = order.map((entry, i) => {
+      if (!entry) {
+        return `<div class="podium-item ${positionClasses[i]} is-empty"></div>`;
+      }
+      const s = entry.student;
+      return `
+        <div class="podium-item ${positionClasses[i]}">
+          <div class="podium-medal">${medals[i]}</div>
+          <div class="podium-avatar" aria-hidden="true">${escapeHtml(String(s.name).slice(0, 1))}</div>
+          <p class="podium-name">${escapeHtml(s.name)}</p>
+          <p class="podium-meta">${escapeHtml(s.class)}반 · ${escapeHtml(s.group_or_team)} · ${escapeHtml(s.number)}번</p>
+          <div class="podium-value">${primaryValueOf(entry)}</div>
+          <div class="podium-base">${positionLabels[i]}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderRestList(rest, startRank) {
+    if (rest.length === 0) {
+      restHeadingEl.hidden = true;
+      rankListEl.innerHTML = '';
+      return;
+    }
+    restHeadingEl.hidden = false;
+    restHeadingEl.textContent = `${startRank}등부터`;
+
+    rankListEl.innerHTML = rest.map((entry, index) => {
+      const rank = startRank + index;
+      const s = entry.student;
+      const secondary = secondaryOf(entry);
+
+      return `
+        <div class="rank-row">
+          <div class="rank-number">${rank}</div>
+          <div class="avatar" aria-hidden="true">${escapeHtml(String(s.name).slice(0, 1))}</div>
+          <div class="student-info">
+            <p class="student-name">${escapeHtml(s.name)}</p>
+            <p class="student-meta">${escapeHtml(s.class)}반 · ${escapeHtml(s.group_or_team)} · ${escapeHtml(s.number)}번</p>
+          </div>
+          <div class="stat-block">
+            <div class="stat-value">${primaryValueOf(entry)}</div>
+            <div class="stat-label">${state.mode === 'best' ? '최고기록' : '도전횟수'}</div>
+          </div>
+          <div class="stat-block secondary">
+            <div class="stat-value">${secondary.value}</div>
+            <div class="stat-label">${secondary.label}</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
   function renderBoard() {
     boardTitleEl.textContent = state.mode === 'best' ? '기록 랭킹' : '도전횟수 랭킹';
     const stats = computeStudentStats();
@@ -342,42 +481,16 @@
     }
 
     if (sorted.length === 0) {
+      podiumEl.innerHTML = '';
+      restHeadingEl.hidden = true;
       rankListEl.innerHTML = '<div class="empty-board">해당 반에 학생 데이터가 없어요.</div>';
       return;
     }
 
-    rankListEl.innerHTML = sorted.map((entry, index) => {
-      const rank = index + 1;
-      const rankClass = rank <= 3 ? ` rank-${rank}` : '';
-      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
-      const s = entry.student;
-
-      const primaryValue = state.mode === 'best'
-        ? (entry.best === null ? '<span>—</span>' : `${formatSeconds(entry.best)}<small>초</small>`)
-        : `${entry.attempts}<small>회</small>`;
-      const secondaryLabel = state.mode === 'best' ? '연습 횟수' : '최고기록';
-      const secondaryValue = state.mode === 'best'
-        ? `${entry.attempts}회`
-        : (entry.best === null ? '—' : `${formatSeconds(entry.best)}초`);
-
-      return `
-        <div class="rank-row${rankClass}">
-          <div class="rank-number">${medal}</div>
-          <div class="avatar" aria-hidden="true">${escapeHtml(String(s.name).slice(0, 1))}</div>
-          <div class="student-info">
-            <p class="student-name">${escapeHtml(s.name)}</p>
-            <p class="student-meta">${escapeHtml(s.class)}반 · ${escapeHtml(s.group_or_team)} · ${escapeHtml(s.number)}번</p>
-          </div>
-          <div class="stat-block">
-            <div class="stat-value">${primaryValue}</div>
-            <div class="stat-label">${state.mode === 'best' ? '최고기록' : '도전횟수'}</div>
-          </div>
-          <div class="stat-block secondary">
-            <div class="stat-value">${secondaryValue}</div>
-            <div class="stat-label">${secondaryLabel}</div>
-          </div>
-        </div>`;
-    }).join('');
+    const top3 = sorted.slice(0, 3);
+    const rest = sorted.slice(3);
+    renderPodium(top3);
+    renderRestList(rest, 4);
   }
 
   async function fetchJson(url) {
