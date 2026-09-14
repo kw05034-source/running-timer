@@ -44,6 +44,15 @@
     border-bottom: 1px solid rgba(255,255,255,0.08);
     padding-bottom: 16px;
   }
+  .back-link {
+    display: inline-block;
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .back-link:hover { color: var(--text-main); }
   .eyebrow {
     color: var(--accent);
     letter-spacing: 0.14em;
@@ -225,6 +234,7 @@
 <div class="board">
   <div class="board-header">
     <div>
+      <a href="./index.html" class="back-link">← 학생 선택으로</a>
       <p class="eyebrow">장애물달리기 · 실시간 랭킹 전광판</p>
       <h1 id="board-title">기록 랭킹</h1>
     </div>
