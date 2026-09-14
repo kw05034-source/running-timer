@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#10213e">
-<title>랭킹 전광판 | 달리기</title>
+<title>랭킹 전광판 | 장애물달리기</title>
 <style>
   :root {
     --navy-950: #0d1a31;
@@ -40,11 +40,10 @@
     -webkit-font-smoothing: antialiased;
   }
   a { -webkit-tap-highlight-color: transparent; }
-  .mono { font-family: 'Cascadia Mono', 'Roboto Mono', monospace; }
 
   .board-header {
     min-height: 80px;
-    padding: 0 max(28px, calc((100vw - 1180px) / 2));
+    padding: 0 max(28px, calc((100vw - 1280px) / 2));
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -52,237 +51,111 @@
     color: #fff;
     background: var(--navy-900);
   }
-  .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 11px;
-    color: inherit;
-    text-decoration: none;
-  }
+  .brand { display: inline-flex; align-items: center; gap: 11px; color: inherit; text-decoration: none; }
   .brand-mark {
-    width: 34px;
-    height: 34px;
-    display: grid;
-    place-items: center;
-    border-radius: 10px;
-    color: var(--navy-900);
-    background: var(--gold-500);
-    font-size: 18px;
-    font-weight: 800;
-    line-height: 1;
+    width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px;
+    color: var(--navy-900); background: var(--gold-500); font-size: 18px; font-weight: 800; line-height: 1;
   }
   .brand-name { display: block; font-size: 15px; font-weight: 800; letter-spacing: -0.03em; }
   .brand-context { display: block; margin-top: 1px; color: #a7b7d0; font-size: 11px; font-weight: 500; }
 
   .header-right { display: flex; align-items: center; gap: 22px; }
-  .back-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: #bbcadf;
-    font-size: 12px;
-    font-weight: 700;
-    text-decoration: none;
-  }
+  .back-link { display: inline-flex; align-items: center; gap: 6px; color: #bbcadf; font-size: 12px; font-weight: 700; text-decoration: none; }
   .back-link:hover { color: #fff; }
   .clock-block { text-align: right; }
   .clock { font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 20px; font-weight: 500; letter-spacing: -0.04em; }
   .updated-at { margin-top: 2px; color: #8ea2c1; font-size: 11px; }
 
-  .main-content {
-    width: min(1180px, calc(100% - 56px));
-    margin: 0 auto;
-    padding: 44px 0 70px;
-  }
+  .main-content { width: min(1280px, calc(100% - 48px)); margin: 0 auto; padding: 36px 0 60px; }
 
   .controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 16px;
-    padding: 19px 22px 19px 26px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-md);
-    background: var(--paper);
-    box-shadow: 0 8px 30px rgba(23, 49, 88, 0.04);
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+    padding: 17px 22px; border: 1px solid var(--line); border-radius: var(--radius-md);
+    background: var(--paper); box-shadow: 0 8px 30px rgba(23, 49, 88, 0.04);
   }
   .class-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
   .tab-btn {
-    min-width: 58px;
-    min-height: 40px;
-    padding: 0 16px;
-    border: 0;
-    border-radius: 9px;
-    color: var(--muted);
-    background: transparent;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: -0.04em;
-    cursor: pointer;
-    transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+    min-width: 54px; min-height: 38px; padding: 0 14px; border: 0; border-radius: 9px;
+    color: var(--muted); background: transparent; font-size: 13px; font-weight: 700; letter-spacing: -0.04em;
+    cursor: pointer; transition: color 160ms ease, background 160ms ease, transform 160ms ease;
   }
   .tab-btn:hover { color: var(--navy-900); background: var(--blue-100); }
   .tab-btn:active { transform: scale(0.97); }
   .tab-btn.is-selected { color: #fff; background: var(--navy-900); }
 
   .mode-switch { display: flex; gap: 6px; padding: 4px; border-radius: 11px; background: var(--canvas); }
-  .mode-btn {
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    padding: 9px 18px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 800;
-    cursor: pointer;
-    transition: color 160ms ease, background 160ms ease;
-  }
+  .mode-btn { border: 0; background: transparent; color: var(--muted); padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 800; cursor: pointer; transition: color 160ms ease, background 160ms ease; }
   .mode-btn.is-selected { color: var(--navy-900); background: var(--gold-500); }
 
-  .list-heading {
-    margin: 40px 0 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: end;
-  }
-  .list-heading h1 { margin: 0; color: var(--navy-900); font-size: clamp(28px, 3.4vw, 40px); font-weight: 800; letter-spacing: -0.06em; }
-  .list-heading p { margin: 6px 0 0; color: var(--muted); font-size: 13px; letter-spacing: -0.03em; }
+  .gender-columns { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .gender-column { min-width: 0; }
+  .gender-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid var(--line); }
+  .gender-heading h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.05em; }
+  .gender-column.male .gender-heading h2 { color: var(--blue-500); }
+  .gender-column.female .gender-heading h2 { color: #e8618f; }
+  .gender-count { color: var(--muted); font-size: 12px; font-weight: 600; }
 
-  .podium {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    align-items: end;
-    gap: 16px;
-    margin-bottom: 40px;
-  }
-  .podium-item { display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .podium { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end; gap: 10px; margin-bottom: 24px; }
+  .podium-item { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; }
   .podium-item.is-empty { visibility: hidden; }
-  .podium-medal { font-size: 30px; line-height: 1; margin-bottom: 8px; }
+  .podium-medal { font-size: 22px; line-height: 1; margin-bottom: 6px; }
   .podium-avatar {
-    width: 68px;
-    height: 68px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    color: var(--blue-500);
-    background: var(--blue-100);
-    font-size: 26px;
-    font-weight: 800;
-    border: 3px solid var(--paper);
-    box-shadow: 0 6px 18px rgba(23, 49, 88, 0.12);
-    margin-bottom: 12px;
+    width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%;
+    color: var(--blue-500); background: var(--blue-100); font-size: 19px; font-weight: 800;
+    border: 3px solid var(--paper); box-shadow: 0 6px 16px rgba(23, 49, 88, 0.12); margin-bottom: 9px;
   }
-  .podium-name { color: var(--navy-900); font-size: 17px; font-weight: 800; letter-spacing: -0.04em; margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
-  .podium-meta { color: var(--muted); font-size: 11px; font-weight: 500; margin: 0 0 10px; }
-  .podium-value { font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-weight: 500; letter-spacing: -0.04em; color: var(--navy-900); }
-  .podium-value small { margin-left: 3px; font-family: 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; font-size: 11px; color: var(--muted); font-weight: 600; }
+  .podium-name { color: var(--navy-900); font-size: 14px; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+  .podium-meta { color: var(--muted); font-size: 10px; font-weight: 500; margin: 0 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+  .podium-value { font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-weight: 500; letter-spacing: -0.03em; color: var(--navy-900); font-size: 16px; }
+  .podium-value small { margin-left: 2px; font-family: 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; font-size: 10px; color: var(--muted); font-weight: 600; }
   .podium-base {
-    width: 100%;
-    margin-top: 14px;
-    border-radius: 14px 14px 0 0;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding-top: 10px;
-    font-family: 'Cascadia Mono', 'Roboto Mono', monospace;
-    font-size: 15px;
-    font-weight: 800;
+    width: 100%; margin-top: 10px; border-radius: 12px 12px 0 0; display: flex; align-items: flex-start;
+    justify-content: center; padding-top: 8px; font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 13px; font-weight: 800;
   }
-  .podium-1 .podium-avatar { width: 84px; height: 84px; font-size: 32px; border-color: var(--gold-500); }
-  .podium-1 .podium-value { font-size: 30px; }
-  .podium-1 .podium-base { height: 128px; background: linear-gradient(180deg, var(--gold-100), #ffe6ad); color: #9a6a00; }
+  .podium-1 .podium-avatar { width: 62px; height: 62px; font-size: 23px; border-color: var(--gold-500); }
+  .podium-1 .podium-value { font-size: 21px; }
+  .podium-1 .podium-base { height: 92px; background: linear-gradient(180deg, var(--gold-100), #ffe6ad); color: #9a6a00; }
   .podium-2 .podium-avatar { border-color: #cfd8e3; }
-  .podium-2 .podium-value { font-size: 22px; }
-  .podium-2 .podium-base { height: 92px; background: linear-gradient(180deg, #f1f3f7, #dde3ec); color: #5b6779; }
+  .podium-2 .podium-base { height: 66px; background: linear-gradient(180deg, #f1f3f7, #dde3ec); color: #5b6779; }
   .podium-3 .podium-avatar { border-color: var(--orange-500); }
-  .podium-3 .podium-value { font-size: 22px; }
-  .podium-3 .podium-base { height: 72px; background: linear-gradient(180deg, var(--orange-100), #ffd3ac); color: #8a4c1c; }
+  .podium-3 .podium-base { height: 52px; background: linear-gradient(180deg, var(--orange-100), #ffd3ac); color: #8a4c1c; }
 
-  .rest-heading { margin: 4px 0 14px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: -0.02em; }
-  .rank-list { display: grid; gap: 10px; }
+  .rest-heading { margin: 4px 0 12px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: -0.02em; }
+  .rank-list { display: grid; gap: 8px; }
   .rank-row {
-    display: grid;
-    grid-template-columns: 56px 48px 1fr auto auto;
-    align-items: center;
-    gap: 18px;
-    padding: 16px 22px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-md);
-    background: var(--paper);
-    box-shadow: 0 8px 25px rgba(23, 49, 88, 0.035);
-    transition: transform 180ms ease, box-shadow 180ms ease;
+    display: grid; grid-template-columns: 34px 36px 1fr auto; align-items: center; gap: 12px;
+    padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper);
+    box-shadow: 0 6px 18px rgba(23, 49, 88, 0.03);
   }
-  .rank-row.rank-1 { border-color: #ffdc94; background: linear-gradient(90deg, var(--gold-100), var(--paper) 55%); }
-  .rank-row.rank-2 { border-color: #cfd8e3; background: linear-gradient(90deg, #eef1f6, var(--paper) 55%); }
-  .rank-row.rank-3 { border-color: #f3c9a1; background: linear-gradient(90deg, var(--orange-100), var(--paper) 55%); }
-
-  .rank-number { color: var(--muted); font-size: 22px; font-weight: 800; text-align: center; font-family: 'Cascadia Mono', 'Roboto Mono', monospace; }
-  .rank-1 .rank-number { color: var(--gold-500); }
-  .rank-2 .rank-number { color: #9aa7ba; }
-  .rank-3 .rank-number { color: var(--orange-500); }
-
+  .rank-number { color: var(--muted); font-size: 15px; font-weight: 800; text-align: center; font-family: 'Cascadia Mono', 'Roboto Mono', monospace; }
   .avatar {
-    width: 42px;
-    height: 42px;
-    display: grid;
-    place-items: center;
-    border-radius: 13px;
-    color: var(--blue-500);
-    background: var(--blue-100);
-    font-size: 17px;
-    font-weight: 800;
+    width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px;
+    color: var(--blue-500); background: var(--blue-100); font-size: 13px; font-weight: 800;
   }
-  .rank-row:nth-child(3n + 2) .avatar { color: #0eae89; background: var(--mint-100); }
-  .rank-row:nth-child(3n + 3) .avatar { color: #e87d38; background: var(--orange-100); }
+  .gender-column.female .avatar { color: #e8618f; background: #ffe9f1; }
+  .gender-column.female .podium-avatar { color: #e8618f; background: #ffe9f1; }
 
   .student-info { min-width: 0; }
-  .student-name { margin: 0 0 2px; color: var(--navy-900); font-size: 18px; font-weight: 800; letter-spacing: -0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .student-meta { color: var(--muted); font-size: 12px; font-weight: 500; }
+  .student-name { margin: 0 0 1px; color: var(--navy-900); font-size: 14px; font-weight: 800; letter-spacing: -0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .student-meta { color: var(--muted); font-size: 10.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  .stat-block { text-align: right; min-width: 92px; }
-  .stat-value { color: var(--navy-900); font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 26px; font-weight: 500; letter-spacing: -0.05em; }
-  .stat-value small { margin-left: 3px; color: var(--muted); font-family: 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; font-size: 12px; font-weight: 600; }
-  .stat-label { margin-top: 2px; color: var(--muted); font-size: 11px; font-weight: 700; }
-  .stat-block.secondary .stat-value { font-size: 16px; color: var(--navy-800); }
+  .stat-block { text-align: right; }
+  .stat-value { color: var(--navy-900); font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 17px; font-weight: 500; letter-spacing: -0.03em; }
+  .stat-value small { margin-left: 2px; color: var(--muted); font-family: 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; font-size: 10px; font-weight: 600; }
+  .stat-label { margin-top: 1px; color: var(--muted); font-size: 10px; font-weight: 700; }
 
-  .empty-board {
-    padding: 60px 20px;
-    border: 1px dashed #cdd6e4;
-    border-radius: var(--radius-md);
-    color: var(--muted);
-    text-align: center;
-    font-size: 14px;
-  }
-  .error-banner {
-    padding: 14px 18px;
-    border: 1px solid #f7c9c9;
-    border-radius: var(--radius-sm);
-    background: #fff3f3;
-    color: #d1454a;
-    font-size: 13px;
-    font-weight: 700;
-    margin-bottom: 16px;
-  }
+  .empty-board { padding: 40px 16px; border: 1px dashed #cdd6e4; border-radius: var(--radius-md); color: var(--muted); text-align: center; font-size: 13px; }
+  .error-banner { padding: 14px 18px; border: 1px solid #f7c9c9; border-radius: var(--radius-sm); background: #fff3f3; color: #d1454a; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
   .loading-banner { padding: 14px 0; color: var(--muted); font-size: 13px; }
 
-  @media (max-width: 720px) {
+  @media (max-width: 860px) {
+    .gender-columns { grid-template-columns: 1fr; gap: 32px; }
+  }
+  @media (max-width: 600px) {
     .board-header { padding: 0 18px; min-height: 68px; }
     .header-right { gap: 12px; }
-    .main-content { width: min(100% - 32px, 600px); padding: 32px 0 45px; }
-    .controls { flex-direction: column; align-items: stretch; padding: 16px; }
-    .rank-row { grid-template-columns: 40px 36px 1fr auto; }
-    .stat-block.secondary { display: none; }
-    .podium { gap: 8px; }
-    .podium-name { max-width: 96px; font-size: 14px; }
-    .podium-meta { font-size: 10px; }
-    .podium-1 .podium-avatar { width: 64px; height: 64px; font-size: 24px; }
-    .podium-avatar { width: 52px; height: 52px; font-size: 18px; }
-    .podium-1 .podium-value { font-size: 22px; }
-    .podium-2 .podium-value, .podium-3 .podium-value { font-size: 16px; }
-    .podium-1 .podium-base { height: 90px; }
-    .podium-2 .podium-base { height: 66px; }
-    .podium-3 .podium-base { height: 50px; }
+    .main-content { width: min(100% - 32px, 600px); padding: 28px 0 45px; }
+    .controls { flex-direction: column; align-items: stretch; }
   }
 </style>
 </head>
@@ -313,36 +186,58 @@
       </div>
     </div>
 
-    <div class="list-heading">
-      <div>
-        <h1 id="board-title">기록 랭킹</h1>
-        <p>10초마다 자동으로 갱신돼요.</p>
-      </div>
-    </div>
-
     <div id="banner"></div>
-    <div class="podium" id="podium"></div>
-    <p class="rest-heading" id="rest-heading" hidden>4등부터</p>
-    <div class="rank-list" id="rank-list"></div>
+
+    <div class="gender-columns">
+      <section class="gender-column male">
+        <div class="gender-heading">
+          <h2>🔵 남학생 랭킹</h2>
+          <span class="gender-count" id="male-count">0명</span>
+        </div>
+        <div class="podium" id="podium-male"></div>
+        <p class="rest-heading" id="rest-heading-male" hidden>4등부터</p>
+        <div class="rank-list" id="rank-list-male"></div>
+      </section>
+
+      <section class="gender-column female">
+        <div class="gender-heading">
+          <h2>🔴 여학생 랭킹</h2>
+          <span class="gender-count" id="female-count">0명</span>
+        </div>
+        <div class="podium" id="podium-female"></div>
+        <p class="rest-heading" id="rest-heading-female" hidden>4등부터</p>
+        <div class="rank-list" id="rank-list-female"></div>
+      </section>
+    </div>
   </main>
 
 <script>
 (() => {
   'use strict';
 
-  // app.js와 동일한 Apps Script 배포 주소
   const SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbw5mlmLxwSTXB7q7lsbqlGjWfkU9aTUwmwFSKeiK_Y9OyDX-eqx51AAkayE6qtAkCQS/exec';
   const REFRESH_INTERVAL_MS = 10000;
   const ACTIVITY_TYPE = 'obstacle_run';
 
   const classTabsEl = document.getElementById('class-tabs');
-  const podiumEl = document.getElementById('podium');
-  const restHeadingEl = document.getElementById('rest-heading');
-  const rankListEl = document.getElementById('rank-list');
-  const boardTitleEl = document.getElementById('board-title');
   const updatedAtEl = document.getElementById('updated-at');
   const bannerEl = document.getElementById('banner');
   const clockEl = document.getElementById('clock');
+
+  const columns = {
+    male: {
+      podiumEl: document.getElementById('podium-male'),
+      restHeadingEl: document.getElementById('rest-heading-male'),
+      rankListEl: document.getElementById('rank-list-male'),
+      countEl: document.getElementById('male-count')
+    },
+    female: {
+      podiumEl: document.getElementById('podium-female'),
+      restHeadingEl: document.getElementById('rest-heading-female'),
+      rankListEl: document.getElementById('rank-list-female'),
+      countEl: document.getElementById('female-count')
+    }
+  };
 
   const state = {
     students: [],
@@ -360,6 +255,13 @@
     return Number(seconds || 0).toFixed(2);
   }
 
+  function getGender(student) {
+    const team = String(student.group_or_team || '');
+    if (team.startsWith('남')) return 'male';
+    if (team.startsWith('여')) return 'female';
+    return null;
+  }
+
   function tickClock() {
     clockEl.textContent = new Date().toLocaleTimeString('ko-KR', { hour12: false });
   }
@@ -373,7 +275,7 @@
     }).join('');
   }
 
-  function computeStudentStats() {
+  function computeStudentStats(gender) {
     const recordsByStudent = new Map();
     state.records
       .filter((r) => r.activity_type === ACTIVITY_TYPE)
@@ -385,6 +287,7 @@
 
     return state.students
       .filter((s) => state.selectedClass === 'all' || Number(s.class) === Number(state.selectedClass))
+      .filter((s) => getGender(s) === gender)
       .map((s) => {
         const list = recordsByStudent.get(String(s.student_id)) || [];
         const times = list.map((r) => Number(r.record_seconds));
@@ -405,12 +308,11 @@
       : { label: '최고기록', value: entry.best === null ? '—' : `${formatSeconds(entry.best)}초` };
   }
 
-  function renderPodium(top3) {
+  function renderPodium(podiumEl, top3) {
     if (top3.length === 0) {
       podiumEl.innerHTML = '';
       return;
     }
-    // 화면 배치 순서: 2등 - 1등 - 3등
     const order = [top3[1], top3[0], top3[2]];
     const medals = ['🥈', '🥇', '🥉'];
     const positionClasses = ['podium-2', 'podium-1', 'podium-3'];
@@ -426,14 +328,14 @@
           <div class="podium-medal">${medals[i]}</div>
           <div class="podium-avatar" aria-hidden="true">${escapeHtml(String(s.name).slice(0, 1))}</div>
           <p class="podium-name">${escapeHtml(s.name)}</p>
-          <p class="podium-meta">${escapeHtml(s.class)}반 · ${escapeHtml(s.group_or_team)} · ${escapeHtml(s.number)}번</p>
+          <p class="podium-meta">${escapeHtml(s.class)}반 · ${escapeHtml(s.number)}번</p>
           <div class="podium-value">${primaryValueOf(entry)}</div>
           <div class="podium-base">${positionLabels[i]}</div>
         </div>`;
     }).join('');
   }
 
-  function renderRestList(rest, startRank) {
+  function renderRestList(rankListEl, restHeadingEl, rest, startRank) {
     if (rest.length === 0) {
       restHeadingEl.hidden = true;
       rankListEl.innerHTML = '';
@@ -445,7 +347,6 @@
     rankListEl.innerHTML = rest.map((entry, index) => {
       const rank = startRank + index;
       const s = entry.student;
-      const secondary = secondaryOf(entry);
 
       return `
         <div class="rank-row">
@@ -453,23 +354,20 @@
           <div class="avatar" aria-hidden="true">${escapeHtml(String(s.name).slice(0, 1))}</div>
           <div class="student-info">
             <p class="student-name">${escapeHtml(s.name)}</p>
-            <p class="student-meta">${escapeHtml(s.class)}반 · ${escapeHtml(s.group_or_team)} · ${escapeHtml(s.number)}번</p>
+            <p class="student-meta">${escapeHtml(s.class)}반 · ${escapeHtml(s.number)}번</p>
           </div>
           <div class="stat-block">
             <div class="stat-value">${primaryValueOf(entry)}</div>
             <div class="stat-label">${state.mode === 'best' ? '최고기록' : '도전횟수'}</div>
           </div>
-          <div class="stat-block secondary">
-            <div class="stat-value">${secondary.value}</div>
-            <div class="stat-label">${secondary.label}</div>
-          </div>
         </div>`;
     }).join('');
   }
 
-  function renderBoard() {
-    boardTitleEl.textContent = state.mode === 'best' ? '기록 랭킹' : '도전횟수 랭킹';
-    const stats = computeStudentStats();
+  function renderGenderColumn(gender) {
+    const col = columns[gender];
+    const stats = computeStudentStats(gender);
+    col.countEl.textContent = `${stats.length}명`;
 
     let sorted;
     if (state.mode === 'best') {
@@ -481,16 +379,21 @@
     }
 
     if (sorted.length === 0) {
-      podiumEl.innerHTML = '';
-      restHeadingEl.hidden = true;
-      rankListEl.innerHTML = '<div class="empty-board">해당 반에 학생 데이터가 없어요.</div>';
+      col.podiumEl.innerHTML = '';
+      col.restHeadingEl.hidden = true;
+      col.rankListEl.innerHTML = '<div class="empty-board">해당 조건에 학생이 없어요.</div>';
       return;
     }
 
     const top3 = sorted.slice(0, 3);
     const rest = sorted.slice(3);
-    renderPodium(top3);
-    renderRestList(rest, 4);
+    renderPodium(col.podiumEl, top3);
+    renderRestList(col.rankListEl, col.restHeadingEl, rest, 4);
+  }
+
+  function renderBoard() {
+    renderGenderColumn('male');
+    renderGenderColumn('female');
   }
 
   async function fetchJson(url) {
