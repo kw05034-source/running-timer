@@ -222,7 +222,7 @@
     document.getElementById('timer-status').innerHTML = isRunning
       ? '<span class="status-pip" aria-hidden="true"></span>측정 중'
       : '<span class="status-pip" aria-hidden="true"></span>측정 전';
-    document.getElementById('timer-instruction').textContent = isRunning ? '달리기가 끝나면 STOP을 눌러주세요.' : '출발 준비가 되면 START를 눌러주세요.';
+    document.getElementById('timer-instruction').textContent = isRunning ? '달리기가 끝나면 Enter 키(또는 STOP)를 눌러주세요.' : '출발 준비가 되면 Enter 키(또는 START)를 눌러주세요.';
     startButton.disabled = state.timerStatus !== 'idle';
     stopButton.disabled = !isRunning;
     document.querySelector('[data-action="back-to-selection"]').disabled = isRunning;
@@ -448,6 +448,27 @@
         return;
       }
       resetToSelection();
+    }
+  });
+
+  // ---- Enter 키로 시작/정지 ----
+  // 타이머 화면에서 Enter를 누르면 시작, 한 번 더 누르면 정지합니다.
+  // - 키를 꾹 누르고 있을 때(event.repeat) 반복 입력은 무시합니다.
+  // - 시작 직후 잠깐 사이에 다시 눌린 Enter는 실수로 보고 무시합니다(연속 두 번 눌러 바로 멈추는 것을 방지).
+  const ENTER_STOP_GUARD_MS = 300;
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.repeat) return;
+    if (state.screen !== 'timer') return;
+
+    // 버튼에 포커스가 있는 상태에서 Enter를 누르면 버튼 클릭으로도 동시에 처리되어
+    // 두 번 실행될 수 있으므로 기본 동작(버튼 클릭 트리거)을 막습니다.
+    event.preventDefault();
+
+    if (state.timerStatus === 'idle') {
+      startTimer();
+    } else if (state.timerStatus === 'running') {
+      if (performance.now() - state.startedAt < ENTER_STOP_GUARD_MS) return;
+      stopTimer();
     }
   });
 
