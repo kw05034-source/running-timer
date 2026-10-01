@@ -8,19 +8,6 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="intro-overlay" id="intro-overlay">
-    <video class="intro-overlay__video" id="intro-video"
-           src="./hero-page.mp4" poster="./hero-page.jpg"
-           autoplay muted loop playsinline disablepictureinpicture aria-hidden="true"></video>
-    <div class="intro-overlay__scrim" aria-hidden="true"></div>
-    <div class="intro-overlay__content">
-      <p class="intro-overlay__eyebrow">오늘의 체육수업 · 달리기</p>
-      <h1 class="intro-overlay__title">출발 신호에 맞춰<br>힘차게 달려볼까요?</h1>
-      <p class="intro-overlay__lede">나만의 기록에 도전하고, 친구들과 함께 랭킹에 올라보세요.</p>
-      <button class="intro-overlay__button" type="button" id="intro-start-button">수업 시작하기 →</button>
-    </div>
-  </div>
-
   <div class="app-shell">
     <header class="app-header">
       <a class="brand" href="#" aria-label="학생 선택 화면으로 이동" data-action="home">
@@ -209,22 +196,6 @@
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   </div>
 
-  <script>
-    (() => {
-      const overlay = document.getElementById('intro-overlay');
-      const video = document.getElementById('intro-video');
-      const startButton = document.getElementById('intro-start-button');
-      if (!overlay || !startButton) return;
-
-      function dismiss() {
-        overlay.classList.add('is-hidden');
-        if (video) video.pause();
-        window.setTimeout(() => { overlay.hidden = true; }, 650);
-      }
-
-      startButton.addEventListener('click', dismiss);
-    })();
-  </script>
   <script src="./app.js" defer></script>
 </body>
 </html>
