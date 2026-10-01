@@ -438,3 +438,86 @@ button:focus-visible, a:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ================= 타이머 화면: 영상 연출 스타일 (병합) ================= */
+.timer-hero{
+  position:relative;
+  border-radius:32px;
+  overflow:hidden;
+  isolation:isolate;
+  background:#0b1526;
+  min-height:520px;
+}
+.timer-hero__still{
+  position:absolute; inset:0; z-index:0;
+  background-image:url("./hero-page.jpg");
+  background-size:cover; background-position:60% 50%;
+}
+.timer-hero__video{
+  position:absolute; inset:0; z-index:1;
+  width:100%; height:100%; object-fit:cover; object-position:60% 50%;
+  opacity:.55;
+}
+.timer-hero__scrim{
+  position:absolute; inset:0; z-index:2; pointer-events:none;
+  background:
+    linear-gradient(0deg, rgba(6,14,28,.66) 0%, rgba(6,14,28,.22) 46%, rgba(6,14,28,.5) 100%);
+}
+.timer-hero__content{
+  position:relative; z-index:4;
+  display:grid; grid-template-columns:1fr auto;
+  align-items:center; gap:clamp(24px,4vw,60px);
+  padding:clamp(28px,4vw,56px);
+  min-height:520px;
+}
+.timer-hero .timer-intro{ padding-bottom:0; }
+.timer-hero .eyebrow{ color:#ffd7c2; }
+.timer-hero .student-identity--large h1{ color:#fff; text-shadow:0 6px 30px rgba(4,10,20,.55); }
+.timer-hero .identity-overline{ color:rgba(255,255,255,.78); }
+.timer-hero .timer-instruction{ color:rgba(255,255,255,.86); text-shadow:0 2px 16px rgba(4,10,20,.5); margin-left:0; }
+
+/* 글래스 스톱워치 카드 */
+.timer-hero .timer-card{
+  position:relative;
+  width:min(360px,86vw);
+  padding:30px 30px 24px;
+  border-radius:28px;
+  background:rgba(255,255,255,.14);
+  border:1px solid rgba(255,255,255,.32);
+  box-shadow:0 28px 60px -18px rgba(4,10,20,.55), inset 0 1px 0 rgba(255,255,255,.35);
+  backdrop-filter:blur(22px) saturate(1.5);
+  -webkit-backdrop-filter:blur(22px) saturate(1.5);
+}
+.timer-hero .timer-card::before{
+  content:""; position:absolute; inset:-2px; border-radius:30px; z-index:-1;
+  background:linear-gradient(140deg,rgba(79,140,255,.55),rgba(255,122,69,.45));
+  opacity:0; filter:blur(18px); transition:opacity .6s ease;
+}
+.timer-hero .timer-card.is-running::before{ opacity:1; animation:hero-breathe 2.6s ease-in-out infinite; }
+@keyframes hero-breathe{0%,100%{opacity:.55}50%{opacity:1}}
+
+.timer-hero .timer-status{ color:rgba(255,255,255,.86); }
+.timer-hero .status-pip{ background:#8094b5; }
+.timer-hero .timer-card.is-running .timer-status{ color:#5ee08a; }
+.timer-hero .timer-card.is-running .status-pip{ background:#5ee08a; box-shadow:0 0 0 5px rgba(94,224,138,.2); }
+.timer-hero .timer-card.is-stopped .timer-status{ color:#ffb27a; }
+.timer-hero .timer-card.is-stopped .status-pip{ background:#ffb27a; }
+
+.timer-hero .timer-display{
+  color:#fff;
+  font-family:'Cascadia Mono','Roboto Mono',ui-monospace,monospace;
+  font-size:clamp(56px,7vw,84px);
+  font-weight:600; letter-spacing:-.05em;
+}
+.timer-hero .timer-display small{ color:rgba(255,255,255,.72); }
+
+.timer-hero .action-button--start{ background:linear-gradient(140deg,#1f6feb,#3f8dff); color:#fff; }
+.timer-hero .action-button--stop{ background:linear-gradient(140deg,#e8590c,#ff8a3d); color:#fff; }
+.timer-hero .timer-note{ color:rgba(255,255,255,.72); }
+.timer-hero .timer-note span{ border-color:rgba(255,255,255,.5); }
+
+@media (max-width: 860px){
+  .timer-hero__content{ grid-template-columns:1fr; text-align:center; padding-top:44px; }
+  .timer-hero .student-identity--large{ justify-content:center; }
+  .timer-hero .timer-card{ margin:0 auto; }
+}
