@@ -439,85 +439,59 @@ button:focus-visible, a:focus-visible {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-/* ================= 타이머 화면: 영상 연출 스타일 (병합) ================= */
-.timer-hero{
-  position:relative;
-  border-radius:32px;
-  overflow:hidden;
-  isolation:isolate;
+/* ================= 인트로 오버레이: 수업 시작 전 동기유발 영상 ================= */
+.intro-overlay{
+  position:fixed; inset:0; z-index:50;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden; isolation:isolate;
   background:#0b1526;
-  min-height:520px;
+  opacity:1; transition:opacity .6s ease;
 }
-.timer-hero__still{
+.intro-overlay.is-hidden{ opacity:0; pointer-events:none; }
+
+.intro-overlay__video{
   position:absolute; inset:0; z-index:0;
-  background-image:url("./hero-page.jpg");
-  background-size:cover; background-position:60% 50%;
-}
-.timer-hero__video{
-  position:absolute; inset:0; z-index:1;
   width:100%; height:100%; object-fit:cover; object-position:60% 50%;
-  opacity:.55;
 }
-.timer-hero__scrim{
-  position:absolute; inset:0; z-index:2; pointer-events:none;
+.intro-overlay__scrim{
+  position:absolute; inset:0; z-index:1; pointer-events:none;
   background:
-    linear-gradient(0deg, rgba(6,14,28,.66) 0%, rgba(6,14,28,.22) 46%, rgba(6,14,28,.5) 100%);
+    linear-gradient(0deg, rgba(6,14,28,.72) 0%, rgba(6,14,28,.32) 44%, rgba(6,14,28,.6) 100%);
 }
-.timer-hero__content{
-  position:relative; z-index:4;
-  display:grid; grid-template-columns:1fr auto;
-  align-items:center; gap:clamp(24px,4vw,60px);
-  padding:clamp(28px,4vw,56px);
-  min-height:520px;
-}
-.timer-hero .timer-intro{ padding-bottom:0; }
-.timer-hero .eyebrow{ color:#ffd7c2; }
-.timer-hero .student-identity--large h1{ color:#fff; text-shadow:0 6px 30px rgba(4,10,20,.55); }
-.timer-hero .identity-overline{ color:rgba(255,255,255,.78); }
-.timer-hero .timer-instruction{ color:rgba(255,255,255,.86); text-shadow:0 2px 16px rgba(4,10,20,.5); margin-left:0; }
-
-/* 글래스 스톱워치 카드 */
-.timer-hero .timer-card{
-  position:relative;
-  width:min(360px,86vw);
-  padding:30px 30px 24px;
-  border-radius:28px;
-  background:rgba(255,255,255,.14);
-  border:1px solid rgba(255,255,255,.32);
-  box-shadow:0 28px 60px -18px rgba(4,10,20,.55), inset 0 1px 0 rgba(255,255,255,.35);
-  backdrop-filter:blur(22px) saturate(1.5);
-  -webkit-backdrop-filter:blur(22px) saturate(1.5);
-}
-.timer-hero .timer-card::before{
-  content:""; position:absolute; inset:-2px; border-radius:30px; z-index:-1;
-  background:linear-gradient(140deg,rgba(79,140,255,.55),rgba(255,122,69,.45));
-  opacity:0; filter:blur(18px); transition:opacity .6s ease;
-}
-.timer-hero .timer-card.is-running::before{ opacity:1; animation:hero-breathe 2.6s ease-in-out infinite; }
-@keyframes hero-breathe{0%,100%{opacity:.55}50%{opacity:1}}
-
-.timer-hero .timer-status{ color:rgba(255,255,255,.86); }
-.timer-hero .status-pip{ background:#8094b5; }
-.timer-hero .timer-card.is-running .timer-status{ color:#5ee08a; }
-.timer-hero .timer-card.is-running .status-pip{ background:#5ee08a; box-shadow:0 0 0 5px rgba(94,224,138,.2); }
-.timer-hero .timer-card.is-stopped .timer-status{ color:#ffb27a; }
-.timer-hero .timer-card.is-stopped .status-pip{ background:#ffb27a; }
-
-.timer-hero .timer-display{
+.intro-overlay__content{
+  position:relative; z-index:2;
+  width:min(640px, calc(100% - 48px));
+  text-align:center;
   color:#fff;
-  font-family:'Cascadia Mono','Roboto Mono',ui-monospace,monospace;
-  font-size:clamp(56px,7vw,84px);
-  font-weight:600; letter-spacing:-.05em;
 }
-.timer-hero .timer-display small{ color:rgba(255,255,255,.72); }
+.intro-overlay__eyebrow{
+  display:inline-flex; align-items:center; gap:8px;
+  margin:0 0 18px; padding:7px 16px;
+  border-radius:999px;
+  background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.3);
+  font-size:13px; font-weight:800; letter-spacing:.02em;
+  backdrop-filter:blur(8px);
+}
+.intro-overlay__title{
+  margin:0; font-size:clamp(28px,4.4vw,46px); font-weight:800;
+  line-height:1.25; letter-spacing:-.04em;
+  text-shadow:0 6px 30px rgba(4,10,20,.55);
+}
+.intro-overlay__lede{
+  margin:18px 0 0; color:rgba(255,255,255,.88);
+  font-size:clamp(14px,1.6vw,17px); font-weight:500; line-height:1.7;
+  text-shadow:0 2px 16px rgba(4,10,20,.5);
+}
+.intro-overlay__button{
+  margin-top:32px; padding:17px 34px; border:0; border-radius:999px;
+  background:linear-gradient(140deg,#1f6feb,#3f8dff); color:#fff;
+  font-size:16px; font-weight:800; letter-spacing:-.01em; cursor:pointer;
+  box-shadow:0 18px 38px -16px rgba(31,111,235,.85);
+  transition:transform .15s ease, filter .15s ease;
+}
+.intro-overlay__button:hover{ filter:brightness(1.07); }
+.intro-overlay__button:active{ transform:scale(.98); }
 
-.timer-hero .action-button--start{ background:linear-gradient(140deg,#1f6feb,#3f8dff); color:#fff; }
-.timer-hero .action-button--stop{ background:linear-gradient(140deg,#e8590c,#ff8a3d); color:#fff; }
-.timer-hero .timer-note{ color:rgba(255,255,255,.72); }
-.timer-hero .timer-note span{ border-color:rgba(255,255,255,.5); }
-
-@media (max-width: 860px){
-  .timer-hero__content{ grid-template-columns:1fr; text-align:center; padding-top:44px; }
-  .timer-hero .student-identity--large{ justify-content:center; }
-  .timer-hero .timer-card{ margin:0 auto; }
+@media (prefers-reduced-motion: reduce){
+  .intro-overlay{ transition:none; }
 }
