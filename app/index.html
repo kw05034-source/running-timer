@@ -731,7 +731,12 @@
   replay.addEventListener('click', startClip);
 
   /* ================= STOPWATCH ================= */
-  const TARGET_MS = (parseFloat(document.querySelector('#warmup-page [data-t]').textContent) || 30) * 1000;
+  // 거리(m)·목표 시간(초)은 아래 두 값만 바꾸면 페이지 안의 모든 표시가 자동으로 맞춰집니다.
+  const DISTANCE_M = 120;   // 정류장까지 거리(m) — 여기 숫자만 바꾸세요
+  const TARGET_SEC = 30;    // 목표 시간(초) — 여기 숫자만 바꾸세요
+  document.querySelectorAll('#warmup-page [data-d]').forEach((el) => { el.textContent = DISTANCE_M; });
+  document.querySelectorAll('#warmup-page [data-t]').forEach((el) => { el.textContent = TARGET_SEC; });
+  const TARGET_MS = TARGET_SEC * 1000;
   let running = false, failed = false, base = 0, mark = 0, raf = 0, laps = [];
 
   const pad = (n, w = 2) => String(n).padStart(w, '0');
