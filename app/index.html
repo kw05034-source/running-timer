@@ -87,31 +87,39 @@
           <span class="step-indicator">측정 <strong>1 / 2</strong></span>
         </div>
 
-        <div class="timer-layout">
-          <div class="timer-intro">
-            <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>달리기 측정</p>
-            <div class="student-identity student-identity--large">
-              <span class="student-avatar" id="timer-avatar" aria-hidden="true">김</span>
-              <div>
-                <p class="identity-overline" id="timer-student-meta">1반 · 남1조 · 1번</p>
-                <h1 id="timer-title">김민수</h1>
-              </div>
-            </div>
-            <p class="timer-instruction" id="timer-instruction">출발 준비가 되면 START를 눌러주세요.</p>
-          </div>
+        <div class="timer-hero">
+          <div class="timer-hero__still" aria-hidden="true"></div>
+          <video class="timer-hero__video" id="timer-hero-video"
+                 src="./hero-page.mp4" poster="./hero-page.jpg"
+                 autoplay muted loop playsinline disablepictureinpicture aria-hidden="true"></video>
+          <div class="timer-hero__scrim" aria-hidden="true"></div>
 
-          <div class="timer-card" aria-label="달리기 타이머">
-            <div class="timer-status" id="timer-status"><span class="status-pip" aria-hidden="true"></span>측정 전</div>
-            <output class="timer-display" id="timer-display" aria-live="off">00.00<small>초</small></output>
-            <div class="timer-actions">
-              <button class="action-button action-button--start" type="button" id="start-button" data-action="start-timer">
-                <span class="button-icon" aria-hidden="true">▶</span>START
-              </button>
-              <button class="action-button action-button--stop" type="button" id="stop-button" data-action="stop-timer" disabled>
-                <span class="button-icon" aria-hidden="true">■</span>STOP
-              </button>
+          <div class="timer-hero__content">
+            <div class="timer-intro">
+              <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>달리기 측정</p>
+              <div class="student-identity student-identity--large">
+                <span class="student-avatar" id="timer-avatar" aria-hidden="true">김</span>
+                <div>
+                  <p class="identity-overline" id="timer-student-meta">1반 · 남1조 · 1번</p>
+                  <h1 id="timer-title">김민수</h1>
+                </div>
+              </div>
+              <p class="timer-instruction" id="timer-instruction">출발 준비가 되면 Enter 키(또는 START)를 눌러주세요.</p>
             </div>
-            <p class="timer-note"><span aria-hidden="true">i</span> 측정 중에는 학생을 변경할 수 없어요.</p>
+
+            <div class="timer-card" aria-label="달리기 타이머">
+              <div class="timer-status" id="timer-status"><span class="status-pip" aria-hidden="true"></span>측정 전</div>
+              <output class="timer-display" id="timer-display" aria-live="off">00.00<small>초</small></output>
+              <div class="timer-actions">
+                <button class="action-button action-button--start" type="button" id="start-button" data-action="start-timer">
+                  <span class="button-icon" aria-hidden="true">▶</span>START
+                </button>
+                <button class="action-button action-button--stop" type="button" id="stop-button" data-action="stop-timer" disabled>
+                  <span class="button-icon" aria-hidden="true">■</span>STOP
+                </button>
+              </div>
+              <p class="timer-note"><span aria-hidden="true">i</span> 측정 중에는 학생을 변경할 수 없어요.</p>
+            </div>
           </div>
         </div>
       </section>
