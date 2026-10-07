@@ -2,6 +2,13 @@
   'use strict';
 
   const ACTIVITY_TYPE = 'obstacle_run';
+
+  // ---- 유효 기록 기준 ----
+  // 이 시간(초)보다 짧게 끝난 측정은 기록으로 인정하지 않고, 도전 횟수에도 세지 않습니다.
+  // (부저를 일부러 짧게 눌러 횟수를 늘리거나 엉터리 기록을 올리는 것을 막기 위한 값입니다. 수업 전에 직접 달려 보고 조정하세요.)
+  const MIN_VALID_SEC = 5;
+  // 이 시간(초)보다 길면 정지를 깜빡한 것일 수 있어 저장 전에 한 번 더 확인하라고 안내합니다. 기록 자체는 저장할 수 있습니다.
+  const MAX_CHECK_SEC = 30;
   const STORAGE_KEY = 'movement-records-obstacle-run-v1';
   const CLASS_STORAGE_KEY = 'movement-records-selected-class-v1';
   const GROUP_STORAGE_KEY = 'movement-records-selected-group-v1';
@@ -299,6 +306,16 @@
     state.elapsedMs = Math.max(10, performance.now() - state.startedAt);
     const student = getStudent(state.selectedStudentId);
     const attemptNo = getStudentRecords(state.selectedStudentId).length + 1;
+    if (state.elapsedMs / 1000 < MIN_VALID_SEC) {
+      // 너무 짧은 측정은 기록으로 인정하지 않고 같은 학생의 측정 전 상태로 돌아갑니다. 도전 횟수에도 세지 않습니다.
+      state.timerStatus = 'idle';
+      state.startedAt = 0;
+      state.elapsedMs = 0;
+      releaseWakeLock();
+      renderTimer();
+      showToast(`기록이 ${MIN_VALID_SEC}초보다 짧아서 인정되지 않았어요. 다시 도전해 주세요.`);
+      return;
+    }
     state.timerStatus = 'stopped';
     releaseWakeLock();
     state.pendingRecord = {
@@ -315,6 +332,9 @@
     };
     setScreen('confirm');
     renderConfirm();
+    if (state.pendingRecord.record_seconds > MAX_CHECK_SEC) {
+      showToast(`기록이 ${MAX_CHECK_SEC}초보다 길어요. 정지를 늦게 눌렀다면 저장하지 말고 취소해 주세요.`);
+    }
   }
 
   function resetToSelection(message) {
