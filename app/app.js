@@ -352,6 +352,10 @@
     setScreen('selection');
     renderSelection();
     if (message) showToast(message);
+    // 다른 크롬북에서 저장된 기록도 반영되도록 조용히 다시 불러옵니다.
+    syncRecordsFromSheets().then((ok) => {
+      if (ok && state.screen === 'selection') renderSelection();
+    });
   }
 
   function buildRecordId(record) {
@@ -503,6 +507,36 @@
     }
   });
 
+  // ---- 시트 기록 불러오기 ----
+  // 연습 횟수와 최고 기록은 구글 시트(Records)를 기준으로 셉니다. 시트에서 기록을 지우면 앱에서도 사라지고,
+  // 다른 크롬북에서 저장한 기록도 함께 반영됩니다. 불러오기에 실패하면 이 기기에 저장된 기록을 그대로 씁니다.
+  async function syncRecordsFromSheets() {
+    try {
+      const response = await fetch(`${SHEETS_ENDPOINT}?action=records`);
+      const result = await response.json();
+      if (!result.ok || !Array.isArray(result.data)) throw new Error('기록 응답이 올바르지 않습니다.');
+      records = result.data
+        .filter((row) => row.activity_type === ACTIVITY_TYPE)
+        .map((row) => ({
+          timestamp: String(row.timestamp),
+          student_id: String(row.student_id),
+          grade: Number(row.grade),
+          class: Number(row.class),
+          number: Number(row.number),
+          name: String(row.name),
+          group_or_team: String(row.group_or_team),
+          attempt_no: Number(row.attempt_no),
+          record_seconds: Number(row.record_seconds),
+          activity_type: row.activity_type
+        }));
+      writeRecords();
+      return true;
+    } catch (error) {
+      console.error('시트 기록을 불러오지 못해 이 기기의 기록을 사용합니다.', error);
+      return false;
+    }
+  }
+
   async function loadStudents() {
     const response = await fetch(`${SHEETS_ENDPOINT}?action=students`);
     const result = await response.json();
@@ -544,6 +578,11 @@
     state.selectedClass = readSelectedClass();
     state.selectedGroup = readSelectedGroup(state.selectedClass);
     renderSelection();
+
+    // 화면은 먼저 보여 주고, 시트 기록은 뒤에서 불러와 숫자를 갱신합니다.
+    const synced = await syncRecordsFromSheets();
+    if (state.screen === 'selection') renderSelection();
+    if (!synced) showToast('시트 기록을 불러오지 못해 이 기기의 기록을 보여 줘요.');
   }
 
   init();
