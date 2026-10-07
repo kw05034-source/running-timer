@@ -360,19 +360,71 @@
     opacity:1 !important; transform:none !important; filter:none !important; pointer-events:auto !important;
   }
 </style></noscript>
+
+<style>
+  /* 시작 화면: 영상 보기 / 측정 하기 + 웜업·기록 모드 선택 */
+  #start-page{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 18px;
+    background:linear-gradient(160deg,#0d1a31 0%,#173158 60%,#274878 100%);
+    font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif; color:#fff;
+  }
+  #start-page[hidden]{display:none}
+  #start-page .start-card{width:min(860px,100%); text-align:center}
+  #start-page .start-eyebrow{margin:0 0 10px; font-size:14px; font-weight:800; letter-spacing:.14em; color:#3dd8b0}
+  #start-page h1{margin:0 0 26px; font-size:clamp(30px,5vw,48px); line-height:1.2; letter-spacing:-.02em}
+  #start-page .mode-switch{display:inline-flex; gap:6px; padding:6px; border-radius:999px; background:rgba(255,255,255,.12)}
+  #start-page .mode-btn{
+    border:0; cursor:pointer; font:inherit; font-weight:800; font-size:18px; padding:12px 30px; border-radius:999px;
+    background:transparent; color:#cfe0ff;
+  }
+  #start-page .mode-btn.is-selected{background:#fff; color:#10213e; box-shadow:0 4px 14px rgba(0,0,0,.25)}
+  #start-page .mode-desc{min-height:3.2em; margin:16px auto 28px; max-width:560px; font-size:16px; line-height:1.6; color:#cfe0ff}
+  #start-page .start-actions{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+  #start-page .start-big{
+    border:0; cursor:pointer; font:inherit; border-radius:24px; padding:40px 16px; font-size:clamp(24px,3.6vw,34px); font-weight:900;
+    display:flex; flex-direction:column; align-items:center; gap:10px; box-shadow:0 18px 40px rgba(0,0,0,.3);
+  }
+  #start-page .start-big small{font-size:15px; font-weight:700; opacity:.8}
+  #start-page .start-big:active{transform:translateY(1px) scale(.99)}
+  #start-page .start-big--video{background:#fff; color:#10213e}
+  #start-page .start-big--measure{background:#3dd8b0; color:#06352a}
+  @media (max-width:560px){ #start-page .start-actions{grid-template-columns:1fr} }
+  #mode-badge{display:inline-flex; align-items:center; padding:8px 16px; border-radius:999px; font-weight:800; font-size:15px; background:#e3faf4; color:#06352a}
+  #mode-badge[data-mode="record"]{background:#fff0e6; color:#7a3a00}
+</style>
 </head>
 <body>
 
 <!-- ============================================================
+     시작 화면 (영상 보기 / 측정 하기 + 웜업·기록 모드 선택)
+============================================================ -->
+<div id="start-page">
+  <div class="start-card">
+    <p class="start-eyebrow">체육수업 · 달리기</p>
+    <h1>오늘은 무엇을 할까요?</h1>
+    <div class="mode-switch" role="tablist" aria-label="측정 종류">
+      <button type="button" class="mode-btn" role="tab" data-mode="warmup">웜업 측정</button>
+      <button type="button" class="mode-btn" role="tab" data-mode="record">기록 측정</button>
+    </div>
+    <p class="mode-desc" id="start-mode-desc"></p>
+    <div class="start-actions">
+      <button type="button" class="start-big start-big--video" id="start-video">🎬 영상 보기<small>동기유발 영상을 먼저 봐요</small></button>
+      <button type="button" class="start-big start-big--measure" id="start-measure">⏱ 측정 하기<small>바로 학생을 골라 측정해요</small></button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
      웜업 화면 (수업 시작 전 동기유발용 · 처음 올려주신 영상 데모 그대로)
 ============================================================ -->
-<div id="warmup-page">
+<div id="warmup-page" hidden>
   <header class="hero" id="hero">
     <nav class="nav">
       <div class="brand"><i>▶</i>달리기 · 웜업</div>
       <ul>
         <li><a href="#hero">홈</a></li>
         <li><a href="#stats">기록</a></li>
+        <li><button type="button" class="nav-cta" data-goto="start" style="background:rgba(255,255,255,.2)">처음으로</button></li>
         <li><button type="button" class="nav-cta" data-goto="app">측정 시작하기</button></li>
       </ul>
     </nav>
@@ -466,6 +518,8 @@
       </span>
     </a>
     <div style="display:flex; align-items:center; gap:12px;">
+      <span id="mode-badge" data-mode="warmup">웜업 측정</span>
+      <button type="button" id="back-to-start-button" style="cursor:pointer; border:0; font-weight:800; font-size:16px; padding:14px 22px; border-radius:999px; background:#e5eaf2; color:#17233a;">🏠 처음으로</button>
       <button type="button" id="back-to-warmup-button" style="
         text-decoration:none;
         cursor:pointer;
@@ -501,7 +555,7 @@
   <main class="main-content">
     <section class="screen screen--selection" data-screen="selection" aria-labelledby="selection-title">
       <div class="hero-copy">
-        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>달리기 · 1차 MVP</p>
+        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span><span id="mode-eyebrow">달리기 · 웜업 측정</span></p>
         <h1 id="selection-title">오늘의 기록을<br><span>빠르게 쌓아보세요.</span></h1>
         <p class="hero-description">반과 조를 선택하고, 달릴 학생의 이름을 눌러<br class="desktop-break"> 바로 측정을 시작하세요.</p>
       </div>
@@ -727,7 +781,7 @@
   function reduced(){ return matchMedia('(prefers-reduced-motion: reduce)').matches; }
 
   clip.muted = true;
-  begin();
+  // 영상은 시작 화면에서 '영상 보기'를 눌렀을 때(또는 '영상 다시보기') 재생합니다.
   replay.addEventListener('click', startClip);
 
   /* ================= STOPWATCH ================= */
@@ -871,11 +925,67 @@
     btn.addEventListener('click', goToApp);
   });
 
+  /* ================= 시작 화면: 모드 선택 / 영상 보기 / 측정 하기 ================= */
+  const startPage = document.getElementById('start-page');
+  const MODE_KEY = 'running-mode';
+  const MODE_DESC = {
+    warmup: '수업 시작 전 몸풀기 달리기예요. 짧게 달려도 괜찮고, 기록은 시트에 저장되지 않으며 랭킹에도 들어가지 않아요.',
+    record: '진짜 기록을 재요. 5초보다 짧은 측정은 인정되지 않고, 인정된 기록만 도전 횟수와 랭킹에 들어가요.'
+  };
+  function getMode(){
+    let m = null;
+    try { m = sessionStorage.getItem(MODE_KEY); } catch (e) {}
+    return MODE_DESC[m] ? m : 'warmup';
+  }
+  function setMode(m){
+    try { sessionStorage.setItem(MODE_KEY, m); } catch (e) {}
+    paintMode();
+    window.dispatchEvent(new CustomEvent('runmodechange'));
+  }
+  function paintMode(){
+    const m = getMode();
+    startPage.querySelectorAll('.mode-btn').forEach((b) => {
+      const on = b.dataset.mode === m;
+      b.classList.toggle('is-selected', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+    document.getElementById('start-mode-desc').textContent = MODE_DESC[m];
+  }
+  startPage.querySelectorAll('.mode-btn').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+  function goToStart(){
+    clip.pause();
+    failClip.pause();
+    warmupPage.hidden = true;
+    appShell.hidden = true;
+    startPage.hidden = false;
+    paintMode();
+    window.dispatchEvent(new CustomEvent('runmodechange'));
+  }
+  document.getElementById('start-video').addEventListener('click', () => {
+    startPage.hidden = true;
+    warmupPage.hidden = false;
+    startClip();
+  });
+  document.getElementById('start-measure').addEventListener('click', () => {
+    startPage.hidden = true;
+    goToApp();
+  });
+  document.querySelectorAll('[data-goto="start"]').forEach((btn) => btn.addEventListener('click', goToStart));
+  const backToStartBtn = document.getElementById('back-to-start-button');
+  if (backToStartBtn) {
+    backToStartBtn.addEventListener('click', () => {
+      const isRunning = typeof window.isTimerRunning === 'function' ? window.isTimerRunning() : false;
+      if (isRunning && !window.confirm('측정이 진행 중입니다. 처음 화면으로 이동할까요?')) return;
+      goToStart();
+    });
+  }
+  paintMode();
+
   const backToWarmupBtn = document.getElementById('back-to-warmup-button');
   if (backToWarmupBtn) {
     backToWarmupBtn.addEventListener('click', () => {
-      const stopBtn = document.getElementById('stop-button');
-      const isRunning = stopBtn && !stopBtn.disabled;
+      const isRunning = typeof window.isTimerRunning === 'function' ? window.isTimerRunning() : false;
       if (isRunning && !window.confirm('측정이 진행 중입니다. 웜업 화면으로 이동할까요?')) return;
       appShell.hidden = true;
       warmupPage.hidden = false;
