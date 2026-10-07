@@ -1,14 +1,22 @@
 (() => {
   'use strict';
 
-  const ACTIVITY_TYPE = 'obstacle_run';
+  // ---- 측정 모드 ----
+  // 시작 화면에서 고른 모드(웜업 / 기록)에 따라 저장되는 종류와 인정 기준이 달라집니다.
+  // - 웜업: 몸풀기용. 짧은 측정도 인정하고, 랭킹(기록 전광판)에는 들어가지 않습니다.
+  // - 기록: 5초 미만은 인정하지 않으며 랭킹에 반영됩니다. (기존 obstacle_run 그대로)
+  const MODE_STORAGE_KEY = 'running-mode';
+  const MODES = {
+    warmup: { type: 'warmup_run', label: '웜업 측정', minSec: 0, checkMaxSec: 30 },
+    record: { type: 'obstacle_run', label: '기록 측정', minSec: 5, checkMaxSec: 30 }
+  };
+  function readMode() {
+    let stored = null;
+    try { stored = sessionStorage.getItem(MODE_STORAGE_KEY); } catch (error) { /* 저장소를 못 쓰면 기본값 사용 */ }
+    return MODES[stored] ? stored : 'warmup';
+  }
+  function currentMode() { return MODES[state.mode]; }
 
-  // ---- 유효 기록 기준 ----
-  // 이 시간(초)보다 짧게 끝난 측정은 기록으로 인정하지 않고, 도전 횟수에도 세지 않습니다.
-  // (부저를 일부러 짧게 눌러 횟수를 늘리거나 엉터리 기록을 올리는 것을 막기 위한 값입니다. 수업 전에 직접 달려 보고 조정하세요.)
-  const MIN_VALID_SEC = 5;
-  // 이 시간(초)보다 길면 정지를 깜빡한 것일 수 있어 저장 전에 한 번 더 확인하라고 안내합니다. 기록 자체는 저장할 수 있습니다.
-  const MAX_CHECK_SEC = 30;
   const STORAGE_KEY = 'movement-records-obstacle-run-v1';
   const CLASS_STORAGE_KEY = 'movement-records-selected-class-v1';
   const GROUP_STORAGE_KEY = 'movement-records-selected-group-v1';
@@ -37,6 +45,7 @@
     selectedGroup: '',
     selectedStudentId: null,
     recordsStudentId: null,
+    mode: readMode(),
     timerStatus: 'idle',
     startedAt: 0,
     elapsedMs: 0,
@@ -137,9 +146,13 @@
     return students.find((student) => student.student_id === studentId);
   }
 
+  // 웜업 기록은 시트에 저장하지 않고, 이 화면을 열어 둔 동안만 보여 줍니다.
+  let warmupRecords = [];
+
   function getStudentRecords(studentId) {
-    return records
-      .filter((record) => record.student_id === studentId && record.activity_type === ACTIVITY_TYPE)
+    const source = state.mode === 'warmup' ? warmupRecords : records;
+    return source
+      .filter((record) => record.student_id === studentId && record.activity_type === currentMode().type)
       .sort((first, second) => new Date(first.timestamp) - new Date(second.timestamp));
   }
 
@@ -306,14 +319,14 @@
     state.elapsedMs = Math.max(10, performance.now() - state.startedAt);
     const student = getStudent(state.selectedStudentId);
     const attemptNo = getStudentRecords(state.selectedStudentId).length + 1;
-    if (state.elapsedMs / 1000 < MIN_VALID_SEC) {
+    if (state.elapsedMs / 1000 < currentMode().minSec) {
       // 너무 짧은 측정은 기록으로 인정하지 않고 같은 학생의 측정 전 상태로 돌아갑니다. 도전 횟수에도 세지 않습니다.
       state.timerStatus = 'idle';
       state.startedAt = 0;
       state.elapsedMs = 0;
       releaseWakeLock();
       renderTimer();
-      showToast(`기록이 ${MIN_VALID_SEC}초보다 짧아서 인정되지 않았어요. 다시 도전해 주세요.`);
+      showToast(`기록이 ${currentMode().minSec}초보다 짧아서 인정되지 않았어요. 다시 도전해 주세요.`);
       return;
     }
     state.timerStatus = 'stopped';
@@ -328,12 +341,12 @@
       group_or_team: student.group_or_team,
       attempt_no: attemptNo,
       record_seconds: Number((state.elapsedMs / 1000).toFixed(2)),
-      activity_type: ACTIVITY_TYPE
+      activity_type: currentMode().type
     };
     setScreen('confirm');
     renderConfirm();
-    if (state.pendingRecord.record_seconds > MAX_CHECK_SEC) {
-      showToast(`기록이 ${MAX_CHECK_SEC}초보다 길어요. 정지를 늦게 눌렀다면 저장하지 말고 취소해 주세요.`);
+    if (state.pendingRecord.record_seconds > currentMode().checkMaxSec) {
+      showToast(`기록이 ${currentMode().checkMaxSec}초보다 길어요. 정지를 늦게 눌렀다면 저장하지 말고 취소해 주세요.`);
     }
   }
 
@@ -392,6 +405,12 @@
 
   async function saveRecord() {
     if (state.timerStatus !== 'stopped' || !state.pendingRecord || state.isSaving) return;
+
+    if (state.mode === 'warmup') {
+      warmupRecords.push(state.pendingRecord);
+      resetToSelection('웜업 기록이에요. 시트에는 저장하지 않았어요. 다음 학생을 선택해 주세요.');
+      return;
+    }
     state.isSaving = true;
     document.getElementById('save-button').disabled = true;
     showToast('구글 시트에 저장하는 중이에요...');
@@ -516,7 +535,6 @@
       const result = await response.json();
       if (!result.ok || !Array.isArray(result.data)) throw new Error('기록 응답이 올바르지 않습니다.');
       records = result.data
-        .filter((row) => row.activity_type === ACTIVITY_TYPE)
         .map((row) => ({
           timestamp: String(row.timestamp),
           student_id: String(row.student_id),
@@ -584,6 +602,30 @@
     if (state.screen === 'selection') renderSelection();
     if (!synced) showToast('시트 기록을 불러오지 못해 이 기기의 기록을 보여 줘요.');
   }
+
+  // ---- 모드 표시와 변경 ----
+  function applyModeUi() {
+    const mode = currentMode();
+    const badge = document.getElementById('mode-badge');
+    if (badge) {
+      badge.textContent = mode.label;
+      badge.dataset.mode = state.mode;
+    }
+    const eyebrow = document.getElementById('mode-eyebrow');
+    if (eyebrow) eyebrow.textContent = `달리기 · ${mode.label}`;
+    if (students.length && state.screen === 'selection') renderSelection();
+  }
+  window.addEventListener('runmodechange', () => {
+    state.mode = readMode();
+    // 모드가 바뀌었거나 처음 화면으로 나갔다 오면, 진행 중이 아닌 한 학생 선택 화면부터 다시 시작합니다.
+    if (state.screen !== 'selection' && state.timerStatus !== 'running') {
+      resetToSelection();
+    }
+    applyModeUi();
+  });
+  applyModeUi();
+  // 화면 전환 버튼(처음으로·영상 다시보기)이 '지금 측정 중인지' 정확히 알 수 있도록 알려 줍니다.
+  window.isTimerRunning = () => state.timerStatus === 'running';
 
   init();
 })();
