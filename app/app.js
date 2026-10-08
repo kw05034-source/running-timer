@@ -208,7 +208,7 @@
       const best = studentRecords.length ? Math.min(...studentRecords.map((record) => Number(record.record_seconds))) : null;
       return `
         <article class="student-card" data-student-id="${escapeHtml(student.student_id)}">
-          <button class="student-select" type="button" data-action="select-student" aria-label="${escapeHtml(student.name)} 학생 측정 시작">
+          <button class="student-select" type="button" data-action="select-student" aria-label="${escapeHtml(student.name)} 학생 성장판 열기">
             <div class="student-card-top">
               <span class="student-avatar" aria-hidden="true">${escapeHtml(student.name.slice(0, 1))}</span>
               <div>
@@ -292,12 +292,9 @@
       return;
     }
     if (!getStudent(studentId)) return;
-    state.selectedStudentId = studentId;
-    state.timerStatus = 'idle';
-    state.elapsedMs = 0;
-    state.pendingRecord = null;
-    setScreen('timer');
-    renderTimer();
+    // 이름을 누르면 그 학생의 성장판(기준 기록 → 짝 관찰 → 목표 → 재측정 → 성찰)으로 바로 이동합니다.
+    // 성장판의 타이머가 측정을 맡고, 기록 측정 모드라면 Records 시트에도 함께 저장합니다.
+    window.location.href = `./growth.html?student=${encodeURIComponent(studentId)}`;
   }
 
   function startTimer() {
