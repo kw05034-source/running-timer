@@ -12,8 +12,7 @@
   const STORAGE_KEY = 'movement-records-growth-v1';
   const CLASS_STORAGE_KEY = 'movement-records-selected-class-v1';
   const GROUP_STORAGE_KEY = 'movement-records-selected-group-v1';
-  const MODE_STORAGE_KEY = 'running-mode'; // 측정 앱 시작 화면에서 고른 모드(웜업 / 기록)
-  const RECORD_MIN_SEC = 5; // 기록 측정 모드에서 랭킹(Records 시트)에 들어가는 최소 기록 (측정 앱과 같음)
+  const RECORD_MIN_SEC = 5; // 랭킹(Records 시트)에 들어가는 최소 기록 (측정 앱 기록 측정과 같음)
   const MIN_SEC = 2;       // 이보다 짧으면 잘못 누른 것으로 보고 인정하지 않음
   const CHECK_MAX_SEC = 20; // 이보다 길면 정지를 늦게 눌렀는지 확인 안내
 
@@ -51,11 +50,6 @@
   const recordCounts = {}; // 학생별 Records 시트 obstacle_run 기록 수 (회차 계산용)
   const focusStudentId = new URLSearchParams(window.location.search).get('student');
 
-  function readMode() {
-    let mode = null;
-    try { mode = sessionStorage.getItem(MODE_STORAGE_KEY); } catch (error) { /* 기본값 사용 */ }
-    return mode === 'record' ? 'record' : 'warmup';
-  }
   let runs = readRuns();
   let toastTimer = null;
   const sendTimers = {};
@@ -343,11 +337,8 @@
       return;
     }
     const r = runOf(student.student_id);
-    const mode = readMode();
-    const badge = mode === 'record'
-      ? `기록 측정 · 타이머로 잰 ${RECORD_MIN_SEC}초 이상 기록은 랭킹에도 들어가요`
-      : '웜업 측정 · 성장판에만 저장되고 랭킹에는 들어가지 않아요';
-    card.innerHTML = `<div class="who"><h2>${esc(student.name)}</h2><span>${esc(student.class)}반 · ${esc(student.group_or_team)} · ${esc(student.number)}번</span></div><span class="mode-badge" data-mode="${mode}">${badge}</span>${stepper(r)}${panelHtml(r)}`;
+    const badge = `🏆 타이머로 잰 ${RECORD_MIN_SEC}초 이상 기록은 기준 기록·재측정 모두 랭킹에도 들어가요`;
+    card.innerHTML = `<div class="who"><h2>${esc(student.name)}</h2><span>${esc(student.class)}반 · ${esc(student.group_or_team)} · ${esc(student.number)}번</span></div><span class="mode-badge" data-mode="record">${badge}</span>${stepper(r)}${panelHtml(r)}`;
     paintDigits();
   }
 
@@ -389,7 +380,8 @@
   function addAttempt(sec, fromTimer) {
     const r = runOf(state.studentId);
     const attempt = { sec: round2(sec), at: new Date().toISOString() };
-    if (fromTimer && readMode() === 'record' && attempt.sec >= RECORD_MIN_SEC) {
+    // 성장판 타이머로 잰 기록은 측정 모드(웜업/기록)와 상관없이 랭킹에도 저장합니다.
+    if (fromTimer && attempt.sec >= RECORD_MIN_SEC) {
       attempt.ranked = true;
       sendToRecords(state.studentId, attempt);
     }
@@ -401,7 +393,7 @@
     showToast(r.attempts.length === 1 ? '기준 기록을 저장했어요.' : `${r.attempts.length}차 기록을 저장했어요.`);
   }
 
-  // 기록 측정 모드에서는 측정 앱과 같은 방식으로 Records 시트(랭킹)에도 한 줄 추가합니다.
+  // 측정 앱의 기록 측정과 같은 방식으로 Records 시트(랭킹)에도 한 줄 추가합니다.
   async function sendToRecords(studentId, attempt) {
     const attemptNo = (recordCounts[studentId] || 0) + 1;
     recordCounts[studentId] = attemptNo;
@@ -638,7 +630,7 @@
       if (window.location.hash === '#teacher') state.mode = 'teacher';
     }
     render();
-    if (focus && readMode() === 'record') loadRecordCounts();
+    if (focus) loadRecordCounts();
     await syncFromSheets();
     if (focus) {
       // 시트에서 더 최근 내용을 받아왔다면 단계 위치를 다시 맞춥니다.
