@@ -49,7 +49,11 @@ var GROWTH_HEADERS = [
   'focus',
   'goal_seconds',
   'reflection_good',
-  'reflection_next'
+  'reflection_next',
+  'efficacy_before',
+  'confidence_before',
+  'efficacy_after',
+  'confidence_after'
 ];
 var GROWTH_FOCUS_VALUES = ['', 'start', 'turn', 'finish'];
 
@@ -601,7 +605,29 @@ function getOrCreateGrowthSheet_(spreadsheet) {
     sheet.getRange(1, 1, sheet.getMaxRows(), GROWTH_HEADERS.length).setNumberFormat('@');
     return sheet;
   }
+  upgradeGrowthHeaders_(sheet);
   return getValidatedSheet_(spreadsheet, GROWTH_SHEET_NAME, GROWTH_HEADERS);
+}
+
+/**
+ * 예전 버전으로 만든 Growth 시트(앞쪽 헤더만 있음)에 새 헤더(자기효능감 칸)를 뒤에 덧붙입니다.
+ * 기존 헤더가 새 헤더의 앞부분과 정확히 같을 때만 고치고, 그 밖의 경우는 검증 단계에서 오류를 알립니다.
+ */
+function upgradeGrowthHeaders_(sheet) {
+  var lastColumn = sheet.getLastColumn();
+  if (lastColumn <= 0 || lastColumn >= GROWTH_HEADERS.length) {
+    return;
+  }
+  var actual = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+  var isPrefix = actual.every(function (header, index) {
+    return header === GROWTH_HEADERS[index];
+  });
+  if (!isPrefix) {
+    return;
+  }
+  var missing = GROWTH_HEADERS.slice(lastColumn);
+  sheet.getRange(1, lastColumn + 1, 1, missing.length).setValues([missing]);
+  sheet.getRange(1, lastColumn + 1, sheet.getMaxRows(), missing.length).setNumberFormat('@');
 }
 
 function saveGrowth_(request) {
@@ -677,7 +703,11 @@ function saveGrowth_(request) {
       input.focus,
       input.goal_seconds,
       input.reflection_good,
-      input.reflection_next
+      input.reflection_next,
+      input.efficacy_before,
+      input.confidence_before,
+      input.efficacy_after,
+      input.confidence_after
     ];
 
     if (targetRow) {
@@ -739,8 +769,24 @@ function normalizeGrowthInput_(growth) {
     focus: focus,
     goal_seconds: goal,
     reflection_good: normalizeOptionalText_(growth.reflection_good, 300),
-    reflection_next: normalizeOptionalText_(growth.reflection_next, 300)
+    reflection_next: normalizeOptionalText_(growth.reflection_next, 300),
+    efficacy_before: normalizeOptionalText_(growth.efficacy_before, 300),
+    confidence_before: normalizeConfidence_(growth.confidence_before, 'confidence_before'),
+    efficacy_after: normalizeOptionalText_(growth.efficacy_after, 300),
+    confidence_after: normalizeConfidence_(growth.confidence_after, 'confidence_after')
   };
+}
+
+/** 자신감 점수: 비어 있거나 1~5 정수 */
+function normalizeConfidence_(value, fieldName) {
+  if (value === undefined || value === null || value === '') {
+    return '';
+  }
+  var number = Number(value);
+  if (!isFinite(number) || Math.floor(number) !== number || number < 1 || number > 5) {
+    throwAppError_('INVALID_GROWTH', fieldName + '은(는) 1~5 사이 정수여야 합니다.', 400);
+  }
+  return number;
 }
 
 /** "6.42,6.30" 형태의 기록 목록을 검증합니다. */
