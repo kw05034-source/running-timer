@@ -12,6 +12,8 @@
   const STORAGE_KEY = 'movement-records-growth-v1';
   const CLASS_STORAGE_KEY = 'movement-records-selected-class-v1';
   const GROUP_STORAGE_KEY = 'movement-records-selected-group-v1';
+  const MODE_STORAGE_KEY = 'running-mode'; // 측정 앱 시작 화면에서 고른 모드(웜업 / 기록)
+  const RECORD_MIN_SEC = 5; // 기록 측정 모드에서 랭킹(Records 시트)에 들어가는 최소 기록 (측정 앱과 같음)
   const MIN_SEC = 2;       // 이보다 짧으면 잘못 누른 것으로 보고 인정하지 않음
   const CHECK_MAX_SEC = 20; // 이보다 길면 정지를 늦게 눌렀는지 확인 안내
 
@@ -46,6 +48,14 @@
     sheetSupported: null
   };
   let students = [];
+  const recordCounts = {}; // 학생별 Records 시트 obstacle_run 기록 수 (회차 계산용)
+  const focusStudentId = new URLSearchParams(window.location.search).get('student');
+
+  function readMode() {
+    let mode = null;
+    try { mode = sessionStorage.getItem(MODE_STORAGE_KEY); } catch (error) { /* 기본값 사용 */ }
+    return mode === 'record' ? 'record' : 'warmup';
+  }
   let runs = readRuns();
   let toastTimer = null;
   const sendTimers = {};
@@ -333,7 +343,11 @@
       return;
     }
     const r = runOf(student.student_id);
-    card.innerHTML = `<div class="who"><h2>${esc(student.name)}</h2><span>${esc(student.class)}반 · ${esc(student.group_or_team)} · ${esc(student.number)}번</span></div>${stepper(r)}${panelHtml(r)}`;
+    const mode = readMode();
+    const badge = mode === 'record'
+      ? `기록 측정 · 타이머로 잰 ${RECORD_MIN_SEC}초 이상 기록은 랭킹에도 들어가요`
+      : '웜업 측정 · 성장판에만 저장되고 랭킹에는 들어가지 않아요';
+    card.innerHTML = `<div class="who"><h2>${esc(student.name)}</h2><span>${esc(student.class)}반 · ${esc(student.group_or_team)} · ${esc(student.number)}번</span></div><span class="mode-badge" data-mode="${mode}">${badge}</span>${stepper(r)}${panelHtml(r)}`;
     paintDigits();
   }
 
@@ -372,14 +386,59 @@
     window.clearInterval(state.timerId);
     Object.assign(state, { timer: 'idle', timerId: null, startedAt: 0, elapsedMs: 0, pending: null });
   }
-  function addAttempt(sec) {
+  function addAttempt(sec, fromTimer) {
     const r = runOf(state.studentId);
-    r.attempts.push({ sec: round2(sec), at: new Date().toISOString() });
+    const attempt = { sec: round2(sec), at: new Date().toISOString() };
+    if (fromTimer && readMode() === 'record' && attempt.sec >= RECORD_MIN_SEC) {
+      attempt.ranked = true;
+      sendToRecords(state.studentId, attempt);
+    }
+    r.attempts.push(attempt);
     touch(state.studentId);
     resetTimer();
     renderCard();
     renderRoster();
     showToast(r.attempts.length === 1 ? '기준 기록을 저장했어요.' : `${r.attempts.length}차 기록을 저장했어요.`);
+  }
+
+  // 기록 측정 모드에서는 측정 앱과 같은 방식으로 Records 시트(랭킹)에도 한 줄 추가합니다.
+  async function sendToRecords(studentId, attempt) {
+    const attemptNo = (recordCounts[studentId] || 0) + 1;
+    recordCounts[studentId] = attemptNo;
+    const timestamp = attempt.at;
+    try {
+      const response = await fetch(SHEETS_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ type: 'record', record: {
+          student_id: studentId,
+          attempt_no: attemptNo,
+          record_seconds: attempt.sec,
+          activity_type: 'obstacle_run',
+          record_id: `${studentId}_${attemptNo}_${Math.round(attempt.sec * 100)}_${timestamp}`
+        } })
+      });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error && result.error.message ? result.error.message : '랭킹 저장 실패');
+    } catch (error) {
+      recordCounts[studentId] = attemptNo - 1;
+      console.error('Records 시트에 저장하지 못했습니다.', error);
+      showToast('랭킹 시트에 저장하지 못했어요. 성장판에는 저장돼 있어요.');
+    }
+  }
+  async function loadRecordCounts() {
+    try {
+      const response = await fetch(`${SHEETS_ENDPOINT}?action=records`);
+      const result = await response.json();
+      if (!result.ok || !Array.isArray(result.data)) return;
+      result.data.forEach((row) => {
+        if (row.activity_type !== 'obstacle_run') return;
+        const id = String(row.student_id);
+        recordCounts[id] = (recordCounts[id] || 0) + 1;
+      });
+    } catch (error) {
+      console.error('Records 시트를 불러오지 못했습니다.', error);
+    }
   }
 
   // ---- 교사 현황 ----
@@ -481,7 +540,7 @@
 
     switch (b.dataset.action) {
       case 'toggle-timer': if (running) stopTimer(); else startTimer(); break;
-      case 'save-attempt': if (state.pending) addAttempt(state.pending); break;
+      case 'save-attempt': if (state.pending) addAttempt(state.pending, true); break;
       case 'cancel-attempt': resetTimer(); renderCard(); showToast('기록을 저장하지 않았어요.'); break;
       case 'manual': {
         const v = Number.parseFloat(($('manual-sec').value || '').replace(',', '.'));
@@ -489,7 +548,11 @@
         break;
       }
       case 'undo':
-        if (r && r.attempts.length) { r.attempts.pop(); touch(state.studentId); renderCard(); renderRoster(); showToast('마지막 기록을 지웠어요.'); }
+        if (r && r.attempts.length) {
+          const removed = r.attempts.pop();
+          touch(state.studentId); renderCard(); renderRoster();
+          showToast(removed.ranked ? '성장판에서 지웠어요. 랭킹 시트의 기록은 선생님이 시트에서 지워 주세요.' : '마지막 기록을 지웠어요.');
+        }
         break;
       case 'observed':
         r.observed = true;
@@ -560,8 +623,28 @@
     const groups = groupsOf(state.classNo);
     const storedGroup = localStorage.getItem(GROUP_STORAGE_KEY);
     state.group = groups.includes(storedGroup) ? storedGroup : (groups[0] ?? '');
+    const focus = focusStudentId ? getStudent(focusStudentId) : null;
+    if (focus) {
+      // 측정 앱에서 이름을 눌러 들어온 경우: 그 학생 화면만 보여 줍니다.
+      document.body.classList.add('is-focus');
+      state.classNo = Number(focus.class);
+      state.group = focus.group_or_team;
+      state.studentId = focus.student_id;
+      const r = runOf(focus.student_id);
+      state.step = STEPS.findIndex((_, i) => !stepDone(r, i));
+      if (state.step < 0) state.step = 4;
+    } else {
+      $('back-link').textContent = '🏠 측정 앱으로';
+      if (window.location.hash === '#teacher') state.mode = 'teacher';
+    }
     render();
+    if (focus && readMode() === 'record') loadRecordCounts();
     await syncFromSheets();
+    if (focus) {
+      // 시트에서 더 최근 내용을 받아왔다면 단계 위치를 다시 맞춥니다.
+      const r = runOf(focus.student_id);
+      if (state.timer === 'idle') { state.step = STEPS.findIndex((_, i) => !stepDone(r, i)); if (state.step < 0) state.step = 4; }
+    }
     setSyncNote();
     if (state.timer !== 'running' && !document.activeElement?.matches('input, textarea')) render();
   }

@@ -533,7 +533,7 @@
         border-radius:999px;
         box-shadow:0 4px 14px rgba(0,0,0,0.2);
       ">🏆 랭킹 보기</a>
-      <a href="./growth.html" style="
+      <a href="./growth.html#teacher" style="
         text-decoration:none;
         cursor:pointer;
         display:inline-flex;
@@ -546,7 +546,7 @@
         padding:14px 28px;
         border-radius:999px;
         box-shadow:0 4px 14px rgba(0,0,0,0.2);
-      ">📈 성장판</a>
+      ">📊 성장 현황</a>
     </div>
   </header>
 
@@ -979,6 +979,12 @@
     });
   }
   paintMode();
+
+  // 성장판에서 "학생 선택으로"를 누르고 돌아오면 시작 화면을 건너뛰고 바로 학생 선택 화면을 보여 줍니다.
+  if (window.location.hash === '#measure') {
+    startPage.hidden = true;
+    goToApp();
+  }
 
   const backToWarmupBtn = document.getElementById('back-to-warmup-button');
   if (backToWarmupBtn) {
