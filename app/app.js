@@ -13,7 +13,7 @@
   function readMode() {
     let stored = null;
     try { stored = sessionStorage.getItem(MODE_STORAGE_KEY); } catch (error) { /* 저장소를 못 쓰면 기본값 사용 */ }
-    return MODES[stored] ? stored : 'warmup';
+    return MODES[stored] ? stored : 'record';
   }
   function currentMode() { return MODES[state.mode]; }
 
