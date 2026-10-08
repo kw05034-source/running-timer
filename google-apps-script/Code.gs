@@ -32,11 +32,32 @@ var RECORDS_HEADERS = [
   'activity_type'
 ];
 
-var AVAILABLE_ACTIONS = ['students', 'records', 'health'];
+// 성장판(20m 왕복달리기 자기 개선 과정): 학생당 한 줄, 최신 상태로 덮어씁니다.
+var GROWTH_SHEET_NAME = 'Growth';
+var GROWTH_HEADERS = [
+  'updated_at',
+  'student_id',
+  'class',
+  'number',
+  'name',
+  'group_or_team',
+  'attempts',
+  'start_checks',
+  'turn_checks',
+  'finish_checks',
+  'observed',
+  'focus',
+  'goal_seconds',
+  'reflection_good',
+  'reflection_next'
+];
+var GROWTH_FOCUS_VALUES = ['', 'start', 'turn', 'finish'];
+
+var AVAILABLE_ACTIONS = ['students', 'records', 'growth', 'health'];
 var RECORD_ID_PROPERTY_PREFIX = 'record_id_hash:';
 
 /**
- * GET /exec?action=students|records|health
+ * GET /exec?action=students|records|growth|health
  */
 function doGet(e) {
   try {
@@ -74,6 +95,20 @@ function doGet(e) {
       });
     }
 
+    if (action === 'growth') {
+      var growthSpreadsheet = getSpreadsheet_();
+      getOrCreateGrowthSheet_(growthSpreadsheet);
+      return jsonResponse_({
+        ok: true,
+        action: action,
+        data: readSheetRows_(
+          growthSpreadsheet,
+          GROWTH_SHEET_NAME,
+          GROWTH_HEADERS
+        )
+      });
+    }
+
     if (action === 'health') {
       return jsonResponse_(getHealthStatus_());
     }
@@ -91,10 +126,14 @@ function doGet(e) {
 /**
  * POST /exec
  * body: { type: "record", record: {...} }
+ *    또는 { type: "growth", growth: {...} } (성장판 한 학생의 현재 상태)
  */
 function doPost(e) {
   try {
     var request = parseJsonRequest_(e);
+    if (request && typeof request === 'object' && request.type === 'growth') {
+      return saveGrowth_(request);
+    }
     validateRequestShape_(request);
     var inputRecord = normalizeRecordInput_(request.record);
 
@@ -547,4 +586,198 @@ function getRecordIdPropertyKey_(recordId) {
     return ('0' + value.toString(16)).slice(-2);
   }).join('');
   return RECORD_ID_PROPERTY_PREFIX + hex;
+}
+
+/* ---------- 성장판 (Growth 시트) ---------- */
+
+/** Growth 시트가 없으면 헤더와 함께 만듭니다. */
+function getOrCreateGrowthSheet_(spreadsheet) {
+  var sheet = spreadsheet.getSheetByName(GROWTH_SHEET_NAME);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(GROWTH_SHEET_NAME);
+    sheet.getRange(1, 1, 1, GROWTH_HEADERS.length).setValues([GROWTH_HEADERS]);
+    sheet.setFrozenRows(1);
+    // 기록 목록(예: 6.42,6.30)이 숫자로 바뀌지 않도록 텍스트 서식으로 둡니다.
+    sheet.getRange(1, 1, sheet.getMaxRows(), GROWTH_HEADERS.length).setNumberFormat('@');
+    return sheet;
+  }
+  return getValidatedSheet_(spreadsheet, GROWTH_SHEET_NAME, GROWTH_HEADERS);
+}
+
+function saveGrowth_(request) {
+  var keys = Object.keys(request);
+  var hasOnlyAllowedKeys = keys.every(function (key) {
+    return key === 'type' || key === 'growth';
+  });
+  if (!hasOnlyAllowedKeys || !request.growth || typeof request.growth !== 'object' ||
+      Array.isArray(request.growth)) {
+    throwAppError_(
+      'INVALID_REQUEST',
+      'JSON body는 type이 "growth"이고 growth 객체를 포함해야 합니다.',
+      400
+    );
+  }
+  var input = normalizeGrowthInput_(request.growth);
+
+  var spreadsheet = getSpreadsheet_();
+  var studentsSheet = getValidatedSheet_(
+    spreadsheet,
+    STUDENTS_SHEET_NAME,
+    STUDENTS_HEADERS
+  );
+  var student = findStudentById_(studentsSheet, input.student_id);
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throwAppError_(
+      'LOCK_TIMEOUT',
+      '동시 저장이 많아 잠금을 획득하지 못했습니다. 잠시 후 다시 시도하세요.',
+      503
+    );
+  }
+
+  try {
+    var sheet = getOrCreateGrowthSheet_(spreadsheet);
+    var lastRow = sheet.getLastRow();
+    var targetRow = 0;
+    var storedUpdatedAt = '';
+    if (lastRow > 1) {
+      var ids = sheet.getRange(2, 2, lastRow - 1, 1).getDisplayValues();
+      var times = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+      for (var i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]).trim() === input.student_id) {
+          targetRow = i + 2;
+          storedUpdatedAt = String(times[i][0]);
+          break;
+        }
+      }
+    }
+
+    // 다른 크롬북에서 더 최근에 저장한 내용은 덮어쓰지 않습니다.
+    if (targetRow && storedUpdatedAt && storedUpdatedAt > input.updated_at) {
+      return jsonResponse_({
+        ok: true,
+        stale: true,
+        message: '시트에 더 최근 내용이 있어 덮어쓰지 않았습니다.'
+      });
+    }
+
+    var row = [
+      input.updated_at,
+      student.student_id,
+      student['class'],
+      student.number,
+      student.name,
+      student.group_or_team,
+      input.attempts,
+      input.start_checks,
+      input.turn_checks,
+      input.finish_checks,
+      input.observed,
+      input.focus,
+      input.goal_seconds,
+      input.reflection_good,
+      input.reflection_next
+    ];
+
+    if (targetRow) {
+      sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
+    } else {
+      sheet.appendRow(row);
+    }
+
+    return jsonResponse_({
+      ok: true,
+      stale: false,
+      message: '성장판을 저장했습니다.',
+      student_id: student.student_id
+    });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function normalizeGrowthInput_(growth) {
+  var allowedKeys = GROWTH_HEADERS.filter(function (header) {
+    return ['class', 'number', 'name', 'group_or_team'].indexOf(header) === -1;
+  });
+  var hasOnlyAllowedKeys = Object.keys(growth).every(function (key) {
+    return allowedKeys.indexOf(key) !== -1;
+  });
+  if (!hasOnlyAllowedKeys) {
+    throwAppError_(
+      'INVALID_GROWTH_FIELDS',
+      'growth에는 ' + allowedKeys.join(', ') + '만 사용할 수 있습니다.',
+      400
+    );
+  }
+
+  var updatedAt = normalizeRequiredText_(growth.updated_at, 'updated_at');
+  if (isNaN(new Date(updatedAt).getTime())) {
+    throwAppError_('INVALID_GROWTH', 'updated_at은 ISO 날짜 문자열이어야 합니다.', 400);
+  }
+
+  var focus = typeof growth.focus === 'string' ? growth.focus.trim() : '';
+  if (GROWTH_FOCUS_VALUES.indexOf(focus) === -1) {
+    throwAppError_('INVALID_GROWTH', 'focus는 start, turn, finish 중 하나여야 합니다.', 400);
+  }
+
+  var goal = '';
+  if (growth.goal_seconds !== '' && growth.goal_seconds !== null &&
+      growth.goal_seconds !== undefined) {
+    goal = normalizeNonNegativeNumber_(growth.goal_seconds, 'goal_seconds');
+  }
+
+  return {
+    student_id: normalizeRequiredText_(growth.student_id, 'student_id'),
+    updated_at: updatedAt,
+    attempts: normalizeNumberList_(growth.attempts, 'attempts', 50),
+    start_checks: normalizeCheckList_(growth.start_checks, 'start_checks'),
+    turn_checks: normalizeCheckList_(growth.turn_checks, 'turn_checks'),
+    finish_checks: normalizeCheckList_(growth.finish_checks, 'finish_checks'),
+    observed: Number(growth.observed) === 1 ? 1 : 0,
+    focus: focus,
+    goal_seconds: goal,
+    reflection_good: normalizeOptionalText_(growth.reflection_good, 300),
+    reflection_next: normalizeOptionalText_(growth.reflection_next, 300)
+  };
+}
+
+/** "6.42,6.30" 형태의 기록 목록을 검증합니다. */
+function normalizeNumberList_(value, fieldName, maxItems) {
+  var text = value === undefined || value === null ? '' : String(value).trim();
+  if (!text) {
+    return '';
+  }
+  var parts = text.split(',');
+  if (parts.length > maxItems) {
+    throwAppError_('INVALID_GROWTH', fieldName + '은(는) 최대 ' + maxItems + '개까지 저장할 수 있습니다.', 400);
+  }
+  return parts.map(function (part) {
+    var number = Number(part);
+    if (!isFinite(number) || number < 0 || number > 600) {
+      throwAppError_('INVALID_GROWTH', fieldName + '에 올바르지 않은 숫자가 있습니다.', 400);
+    }
+    return number.toFixed(2);
+  }).join(',');
+}
+
+/** "1,0,1" 형태의 체크 결과 3개를 검증합니다. */
+function normalizeCheckList_(value, fieldName) {
+  var parts = String(value === undefined || value === null ? '0,0,0' : value).split(',');
+  if (parts.length !== 3) {
+    throwAppError_('INVALID_GROWTH', fieldName + '은(는) 체크 3개여야 합니다.', 400);
+  }
+  return parts.map(function (part) {
+    return String(part).trim() === '1' ? '1' : '0';
+  }).join(',');
+}
+
+function normalizeOptionalText_(value, maxLength) {
+  var text = value === undefined || value === null ? '' : String(value).trim();
+  // 시트 수식으로 해석되지 않도록 맨 앞의 = + - @ 앞에 작은따옴표를 붙입니다.
+  if (/^[=+\-@]/.test(text)) {
+    text = "'" + text;
+  }
+  return text.slice(0, maxLength);
 }

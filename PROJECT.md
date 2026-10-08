@@ -395,6 +395,9 @@ MVP 검증 후 플로어볼 모듈 개발을 시작한다.
 - `app/app.js`: 조별 학생 표시, START/STOP 상태 관리, localStorage 저장, 기록 요약
 - `server.mjs`: 로컬 정적 서버
 - `google-apps-script/Code.gs`: Students/Records Google Sheets Web App 엔드포인트
+- `app/growth.html`, `app/growth.js`: 성장판(20m 왕복달리기 자기 개선 과정). 기준 기록 → 짝 관찰 체크 카드 → 약한 전략 하나와 목표 → 재측정과 자동 피드백 → 성찰, 교사 현황 표
+  - 저장: 크롬북 localStorage + Growth 시트(학생당 한 줄, `type: "growth"` POST / `action=growth` GET). Growth 시트는 첫 사용 때 자동 생성
+  - 시트 연동은 Apps Script를 새 버전으로 재배포해야 켜짐. 옛 배포에서는 이 크롬북에만 저장
 
 현재 실행:
 - `npm start`
