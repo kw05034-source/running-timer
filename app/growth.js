@@ -89,6 +89,15 @@
   function writeOutbox() {
     try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox)); } catch (error) { console.warn('보낼 목록을 저장하지 못했습니다.', error); }
   }
+  const EFFICACY_KEYS = ['efficacy_before', 'confidence_before', 'efficacy_after', 'confidence_after'];
+  // 자기효능감 칸이 없는 예전 Apps Script 배포에도 나머지 성장판은 저장되도록, 거절되면 그 칸만 빼고 다시 보냅니다.
+  async function postGrowth(run) {
+    const row = toRow(run);
+    const result = await postJson({ type: 'growth', growth: row });
+    if (result.ok || !result.error || result.error.code !== 'INVALID_GROWTH_FIELDS') return result;
+    EFFICACY_KEYS.forEach((k) => delete row[k]);
+    return postJson({ type: 'growth', growth: row });
+  }
   const pendingCount = () => outbox.records.length + outbox.growth.length;
   async function postJson(body) {
     const response = await fetch(SHEETS_ENDPOINT, {
@@ -119,7 +128,7 @@
       while (outbox.growth.length) {
         const studentId = outbox.growth[0];
         if (runs[studentId] && state.sheetSupported !== false) {
-          const result = await postJson({ type: 'growth', growth: toRow(runs[studentId]) });
+          const result = await postGrowth(runOf(studentId));
           if (!result.ok && retryable(result)) throw new Error(result.error && result.error.message ? result.error.message : '시트 저장 실패');
           if (!result.ok) console.error('Growth 시트가 성장판을 거절했습니다.', studentId, result.error);
         }
@@ -138,11 +147,17 @@
 
   function blankRun(studentId) {
     return { student_id: studentId, attempts: [], checks: { start: [0, 0, 0], turn: [0, 0, 0], finish: [0, 0, 0] },
-      observed: false, focus: '', goal: null, refl1: '', refl2: '', updated_at: '' };
+      observed: false, focus: '', goal: null, refl1: '', refl2: '', ...blankEfficacy(), updated_at: '' };
+  }
+  // 자기효능감 수업 전·후: 내 말로 쓴 정의와 자신감(1~5점)
+  function blankEfficacy() {
+    return { effBefore: '', confBefore: null, effAfter: '', confAfter: null };
   }
   function runOf(studentId) {
     if (!runs[studentId]) runs[studentId] = blankRun(studentId);
-    return runs[studentId];
+    const r = runs[studentId];
+    if (!('effBefore' in r)) Object.assign(r, blankEfficacy()); // 예전에 저장된 성장판
+    return r;
   }
   function touch(studentId) {
     runOf(studentId).updated_at = new Date().toISOString();
@@ -163,8 +178,16 @@
       focus: run.focus,
       goal_seconds: run.goal == null ? '' : run.goal,
       reflection_good: run.refl1,
-      reflection_next: run.refl2
+      reflection_next: run.refl2,
+      efficacy_before: run.effBefore || '',
+      confidence_before: run.confBefore ?? '',
+      efficacy_after: run.effAfter || '',
+      confidence_after: run.confAfter ?? ''
     };
+  }
+  function confOf(v) {
+    const n = Number(v);
+    return v !== '' && v != null && Number.isInteger(n) && n >= 1 && n <= 5 ? n : null;
   }
   function fromRow(row) {
     const nums = (text) => String(text ?? '').split(',').map((v) => v.trim()).filter(Boolean).map(Number).filter(Number.isFinite);
@@ -178,6 +201,10 @@
       goal: row.goal_seconds === '' || row.goal_seconds == null ? null : Number(row.goal_seconds),
       refl1: String(row.reflection_good ?? ''),
       refl2: String(row.reflection_next ?? ''),
+      effBefore: String(row.efficacy_before ?? ''),
+      confBefore: confOf(row.confidence_before),
+      effAfter: String(row.efficacy_after ?? ''),
+      confAfter: confOf(row.confidence_after),
       updated_at: String(row.updated_at ?? '')
     };
   }
@@ -190,7 +217,7 @@
     // 앞서 못 보낸 것이 남아 있으면 순서를 지키기 위해 보관함에 넣고 함께 보냅니다.
     if (pendingCount()) { queueGrowth(studentId); flushOutbox(); return; }
     try {
-      const result = await postJson({ type: 'growth', growth: toRow(runOf(studentId)) });
+      const result = await postGrowth(runOf(studentId));
       if (!result.ok && retryable(result)) throw new Error(result.error && result.error.message ? result.error.message : '시트 저장 실패');
       if (!result.ok) console.error('Growth 시트가 성장판을 거절했습니다.', studentId, result.error);
       setSyncNote();
@@ -353,11 +380,27 @@
     return `<div class="fb bad"><b>아직 기준 기록(${f2(base)}초)보다 빠르지 않아요${last > base ? ` (방금 ${f2(last)}초)` : ''}.</b><span>${strat ? `${esc(strat.name)} 연습 방법 중 하나만 골라 천천히 3번 해 본 뒤 다시 뛰어요. ` : ''}힘이 빠졌다면 1분 쉬고 재는 것도 방법이에요.</span></div>`;
   }
 
+  function efficacyHtml(r, when) {
+    const before = when === 'before';
+    const def = before ? r.effBefore : r.effAfter;
+    const conf = before ? r.confBefore : r.confAfter;
+    const done = !!def && conf != null;
+    const prev = !before && (r.effBefore || r.confBefore != null)
+      ? `<div class="eff-prev"><b>수업 전의 나</b>${r.confBefore != null ? ` · 자신감 <span class="num">${r.confBefore}</span>점` : ''}${r.effBefore ? `<p>${esc(r.effBefore)}</p>` : ''}</div>` : '';
+    const diff = !before && r.confBefore != null && r.confAfter != null
+      ? `<span class="eff-diff">자신감 ${r.confBefore}점 → ${r.confAfter}점 (${r.confAfter - r.confBefore >= 0 ? '+' : ''}${r.confAfter - r.confBefore})</span>` : '';
+    return `<details class="eff" ${done ? '' : 'open'}><summary>✍️ ${before ? '수업 전' : '수업 후'} · 자기효능감 ${done ? '<span class="saved">작성함</span>' : ''}${diff}</summary>
+      ${prev}
+      <label class="q" for="eff-${when}">${before ? '자기효능감이란 무엇일까요? 내 말로 써 보세요.' : '이제 자기효능감을 다시 내 말로 써 보세요.'}<textarea id="eff-${when}" maxlength="300" placeholder="예: 내가 해낼 수 있다고 믿는 마음">${esc(def)}</textarea></label>
+      <div class="q">오늘 20m 왕복달리기 기록을 줄일 자신이 얼마나 있나요?</div>
+      <div class="conf" role="group" aria-label="자신감 점수">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-conf="${when}:${n}" aria-pressed="${conf === n}">${n}</button>`).join('')}<span class="lead">1 전혀 없음 · 5 매우 있음</span></div>
+      <div class="row"><button type="button" class="primary" data-action="save-efficacy" data-when="${when}">${before ? '수업 전 생각 저장' : '수업 후 생각 저장'}</button><span class="saved" id="eff-saved-${when}" hidden>저장했어요</span></div></details>`;
+  }
   function panelHtml(r) {
     const i = state.step;
     if (i === 0) {
       const has = r.attempts.length > 0;
-      return `<div class="panel"><h3>1단계 · 기준 기록</h3>
+      return `<div class="panel">${efficacyHtml(r, 'before')}<h3>1단계 · 기준 기록</h3>
         <p class="lead">전략을 배우기 전에 지금 실력 그대로 한 번 뛰어요. 이 기록이 오늘 개선의 출발점이에요.</p>
         ${has ? `<div class="sentence">나의 기준 기록: <span class="num">${f2(baseOf(r))}</span>초</div>` : watchHtml()}
         ${feedbackHtml(r)}
@@ -400,6 +443,7 @@
     const change = base != null && best != null ? `${base - best >= 0 ? '-' : '+'}${f2(Math.abs(base - best))}` : '-';
     return `<div class="panel"><h3>5단계 · 성찰 한 줄</h3>
       <div class="summary"><span>기준 <b class="num">${base != null ? f2(base) : '-'}</b>초</span><span>최고 <b class="num">${best != null ? f2(best) : '-'}</b>초</span><span>변화 <b class="num">${change}</b>초</span><span>집중 전략 <b>${strat ? strat.name : '-'}</b></span></div>
+      ${efficacyHtml(r, 'after')}
       <label class="q" for="refl1">어떤 전략이 효과가 있었나요? 몸에서 무엇이 달라졌나요?<textarea id="refl1" maxlength="300" placeholder="예: 반환선 앞에서 보폭을 줄이니 덜 미끄러지고 바로 출발할 수 있었다.">${esc(r.refl1)}</textarea></label>
       <label class="q" for="refl2">다음 시간에는 무엇을 바꿔 볼까요?<textarea id="refl2" maxlength="300" placeholder="예: 다음엔 팔치기를 크게 해서 마지막 5m 속도를 유지해 보겠다.">${esc(r.refl2)}</textarea></label>
       <div class="row"><button type="button" class="primary" data-action="save-reflection">성찰 저장</button><span class="saved" id="refl-saved" hidden>저장했어요</span></div></div>`;
@@ -524,6 +568,9 @@
     const achieved = rows.filter((x) => x.r && x.r.goal != null && bestReOf(x.r) != null && bestReOf(x.r) <= x.r.goal);
     const gains = improved.map((x) => baseOf(x.r) - bestReOf(x.r));
     const avg = gains.length ? gains.reduce((a, b) => a + b, 0) / gains.length : null;
+    const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+    const confPairs = rows.filter((x) => x.r && x.r.confBefore != null && x.r.confAfter != null);
+    const confB = mean(confPairs.map((x) => x.r.confBefore)), confA = mean(confPairs.map((x) => x.r.confAfter));
     const counts = STRATS.map((st) => ({ st, n: rows.filter((x) => x.r && x.r.focus === st.key).length }));
     const max = Math.max(1, ...counts.map((c) => c.n));
     $('teacher-view').innerHTML = `
@@ -532,11 +579,12 @@
         <div class="kpi"><b>기록이 줄어든 학생</b><strong>${improved.length}<em>명</em></strong></div>
         <div class="kpi"><b>목표 달성</b><strong>${achieved.length}<em>명</em></strong></div>
         <div class="kpi"><b>평균 단축(줄어든 학생)</b><strong>${avg != null ? f2(avg) : '-'}<em>초</em></strong></div>
+        <div class="kpi"><b>자신감 평균 (전 → 후)</b><strong>${confB != null ? `${confB.toFixed(1)} → ${confA.toFixed(1)}` : '-'}<em>${confPairs.length ? `${confPairs.length}명` : ''}</em></strong></div>
       </section>
       <section class="card"><h3>학생들이 고른 집중 전략</h3>
         <div class="bars">${counts.map((c) => `<div style="--c:${c.st.color}"><span>${c.st.name}</span><i style="width:${(c.n / max) * 100}%"></i><span class="num">${c.n}</span></div>`).join('')}</div>
         <div class="row"><button type="button" class="ghost" data-action="refresh">시트에서 다시 불러오기</button><button type="button" class="ghost" data-action="copy-csv">표를 CSV로 복사</button><button type="button" class="ghost" data-action="lock-teacher">🔒 잠그기</button></div></section>
-      <section class="tablebox"><table><thead><tr><th>번호</th><th>이름</th><th>조</th><th>기준</th><th>최고(재측정)</th><th>변화</th><th>집중 전략</th><th>목표</th><th>상태</th><th>성찰</th></tr></thead><tbody>
+      <section class="tablebox"><table><thead><tr><th>번호</th><th>이름</th><th>조</th><th>기준</th><th>최고(재측정)</th><th>변화</th><th>집중 전략</th><th>목표</th><th>상태</th><th>자신감 전→후</th><th>자기효능감 정의 (전 / 후)</th><th>성찰</th></tr></thead><tbody>
       ${rows.map(({ s, r }) => {
         const base = r ? baseOf(r) : null, best = r ? bestReOf(r) : null, strat = r ? stratOf(r.focus) : null;
         const d = base != null && best != null ? base - best : null;
@@ -547,19 +595,21 @@
           <td class="n">${base != null ? f2(base) : '-'}</td><td class="n">${best != null ? f2(best) : '-'}</td>
           <td class="n">${d != null ? `<span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '-' : '+'}${f2(Math.abs(d))}</span>` : '-'}</td>
           <td>${strat ? `<b style="color:${strat.color}">${strat.name}</b>` : '-'}</td><td class="n">${r && r.goal != null ? f2(r.goal) : '-'}</td>
-          <td>${status}</td><td class="refl">${r && (r.refl1 || r.refl2) ? esc([r.refl1, r.refl2].filter(Boolean).join(' / ')) : '-'}</td></tr>`;
+          <td>${status}</td><td class="n">${r && (r.confBefore != null || r.confAfter != null) ? `${r.confBefore ?? '-'} → ${r.confAfter ?? '-'}` : '-'}</td>
+          <td class="refl">${r && (r.effBefore || r.effAfter) ? `${esc(r.effBefore || '-')} / ${esc(r.effAfter || '-')}` : '-'}</td><td class="refl">${r && (r.refl1 || r.refl2) ? esc([r.refl1, r.refl2].filter(Boolean).join(' / ')) : '-'}</td></tr>`;
       }).join('')}
       </tbody></table></section>`;
   }
   function csv() {
     const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const head = ['반', '번호', '이름', '조', '기준(초)', '최고 재측정(초)', '변화(초)', '집중 전략', '목표(초)', '출발 체크', '회전 체크', '팔치기 체크', '성찰1', '성찰2'];
+    const head = ['반', '번호', '이름', '조', '기준(초)', '최고 재측정(초)', '변화(초)', '집중 전략', '목표(초)', '출발 체크', '회전 체크', '팔치기 체크', '성찰1', '성찰2', '자신감(전)', '자신감(후)', '자기효능감 정의(전)', '자기효능감 정의(후)'];
     const lines = students.filter((s) => Number(s.class) === state.classNo).map((s) => {
       const r = runs[s.student_id];
       if (!r) return [s.class, s.number, s.name, s.group_or_team].map(q).join(',');
       const b = baseOf(r), be = bestReOf(r);
       return [s.class, s.number, s.name, s.group_or_team, b != null ? f2(b) : '', be != null ? f2(be) : '', b != null && be != null ? f2(b - be) : '',
-        stratOf(r.focus)?.name || '', r.goal != null ? f2(r.goal) : '', scoreOf(r, 'start'), scoreOf(r, 'turn'), scoreOf(r, 'finish'), r.refl1, r.refl2].map(q).join(',');
+        stratOf(r.focus)?.name || '', r.goal != null ? f2(r.goal) : '', scoreOf(r, 'start'), scoreOf(r, 'turn'), scoreOf(r, 'finish'), r.refl1, r.refl2,
+        r.confBefore ?? '', r.confAfter ?? '', r.effBefore || '', r.effAfter || ''].map(q).join(',');
     });
     return [head.map(q).join(','), ...lines].join('\n');
   }
@@ -610,6 +660,15 @@
     if (b.dataset.step) { state.step = Number(b.dataset.step); resetTimer(); renderCard(); return; }
     if (b.dataset.goto) { state.step = Number(b.dataset.goto); resetTimer(); renderCard(); return; }
     const r = state.studentId ? runOf(state.studentId) : null;
+    if (b.dataset.conf && r) {
+      const [when, n] = b.dataset.conf.split(':');
+      // 쓰던 정의가 지워지지 않도록 화면의 글도 함께 담아 둡니다.
+      const text = $(`eff-${when}`) ? $(`eff-${when}`).value.trim() : null;
+      if (when === 'before') { r.confBefore = Number(n); if (text !== null) r.effBefore = text; } else { r.confAfter = Number(n); if (text !== null) r.effAfter = text; }
+      touch(state.studentId);
+      b.parentElement.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      return;
+    }
     if (b.dataset.focus && r) { r.focus = b.dataset.focus; touch(state.studentId); renderCard(); return; }
 
     switch (b.dataset.action) {
@@ -639,9 +698,19 @@
         r.goal = round2(v);
         touch(state.studentId); renderCard(); renderRoster(); break;
       }
+      case 'save-efficacy': {
+        const when = b.dataset.when;
+        const text = $(`eff-${when}`).value.trim();
+        if (when === 'before') r.effBefore = text; else r.effAfter = text;
+        touch(state.studentId);
+        $(`eff-saved-${when}`).hidden = false;
+        if ((when === 'before' ? r.confBefore : r.confAfter) == null) showToast('자신감 점수(1~5)도 눌러 주세요.');
+        break;
+      }
       case 'save-reflection':
         r.refl1 = $('refl1').value.trim();
         r.refl2 = $('refl2').value.trim();
+        if ($('eff-after')) r.effAfter = $('eff-after').value.trim();
         touch(state.studentId); renderRoster();
         $('refl-saved').hidden = false;
         document.querySelector('.steps').outerHTML = stepper(r);
