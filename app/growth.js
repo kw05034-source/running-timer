@@ -12,6 +12,11 @@
   const STORAGE_KEY = 'movement-records-growth-v1';
   const CLASS_STORAGE_KEY = 'movement-records-selected-class-v1';
   const GROUP_STORAGE_KEY = 'movement-records-selected-group-v1';
+  const OUTBOX_KEY = 'movement-records-growth-outbox-v1'; // 와이파이가 끊겨 못 보낸 전송 목록
+  const RETRY_MS = 20000;
+  const TEACHER_UNLOCK_KEY = 'growth-teacher-unlocked';
+  // 교사 화면 잠금 번호의 SHA-256 값입니다. 번호를 바꾸려면 새 번호의 SHA-256 값으로 바꿔 주세요.
+  const TEACHER_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
   const RECORD_MIN_SEC = 5; // 랭킹(Records 시트)에 들어가는 최소 기록 (측정 앱 기록 측정과 같음)
   const MIN_SEC = 2;       // 이보다 짧으면 잘못 누른 것으로 보고 인정하지 않음
   const CHECK_MAX_SEC = 20; // 이보다 길면 정지를 늦게 눌렀는지 확인 안내
@@ -51,6 +56,9 @@
   const focusStudentId = new URLSearchParams(window.location.search).get('student');
 
   let runs = readRuns();
+  let outbox = readOutbox();
+  let flushing = false;
+  let teacherUnlocked = (() => { try { return sessionStorage.getItem(TEACHER_UNLOCK_KEY) === '1'; } catch (error) { return false; } })();
   let toastTimer = null;
   const sendTimers = {};
 
@@ -69,6 +77,65 @@
   function writeRuns() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(runs)); } catch (error) { console.warn('이 기기에 저장하지 못했습니다.', error); }
   }
+  // ---- 못 보낸 전송 보관함 ----
+  // records: Records 시트(랭킹)에 보낼 기록. record_id가 같으면 시트가 중복 저장하지 않으므로 몇 번이고 다시 보내도 안전합니다.
+  // growth: Growth 시트에 다시 보낼 학생 ID. 보낼 때는 그 학생의 최신 성장판을 보냅니다.
+  function readOutbox() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '{}');
+      return { records: Array.isArray(parsed.records) ? parsed.records : [], growth: Array.isArray(parsed.growth) ? parsed.growth : [] };
+    } catch (error) { return { records: [], growth: [] }; }
+  }
+  function writeOutbox() {
+    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox)); } catch (error) { console.warn('보낼 목록을 저장하지 못했습니다.', error); }
+  }
+  const pendingCount = () => outbox.records.length + outbox.growth.length;
+  async function postJson(body) {
+    const response = await fetch(SHEETS_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    });
+    return response.json();
+  }
+  // 서버가 내용 자체를 거절한 경우(잘못된 학생 등)는 다시 보내도 소용없으므로 버립니다.
+  const retryable = (result) => !result.error || result.error.code === 'LOCK_TIMEOUT' || !result.error.code;
+  // 반환값: true 모두 보냄, false 실패(다음에 다시), null 이미 보내는 중
+  async function flushOutbox() {
+    if (flushing) return null;
+    if (!pendingCount()) return true;
+    flushing = true;
+    const before = pendingCount();
+    let sent = true;
+    try {
+      while (outbox.records.length) {
+        const record = outbox.records[0];
+        const result = await postJson({ type: 'record', record });
+        if (!result.ok && retryable(result)) throw new Error(result.error && result.error.message ? result.error.message : '랭킹 저장 실패');
+        if (!result.ok) console.error('Records 시트가 기록을 거절했습니다.', record, result.error);
+        outbox.records.shift();
+        writeOutbox();
+      }
+      while (outbox.growth.length) {
+        const studentId = outbox.growth[0];
+        if (runs[studentId] && state.sheetSupported !== false) {
+          const result = await postJson({ type: 'growth', growth: toRow(runs[studentId]) });
+          if (!result.ok && retryable(result)) throw new Error(result.error && result.error.message ? result.error.message : '시트 저장 실패');
+          if (!result.ok) console.error('Growth 시트가 성장판을 거절했습니다.', studentId, result.error);
+        }
+        outbox.growth.shift();
+        writeOutbox();
+      }
+    } catch (error) {
+      sent = false;
+      console.warn('아직 보내지 못한 기록이 있어요. 잠시 뒤 다시 보냅니다.', error);
+    } finally {
+      flushing = false;
+      setSyncNote();
+    }
+    return sent;
+  }
+
   function blankRun(studentId) {
     return { student_id: studentId, attempts: [], checks: { start: [0, 0, 0], turn: [0, 0, 0], finish: [0, 0, 0] },
       observed: false, focus: '', goal: null, refl1: '', refl2: '', updated_at: '' };
@@ -120,19 +187,23 @@
     sendTimers[studentId] = window.setTimeout(() => sendRun(studentId), 700);
   }
   async function sendRun(studentId) {
+    // 앞서 못 보낸 것이 남아 있으면 순서를 지키기 위해 보관함에 넣고 함께 보냅니다.
+    if (pendingCount()) { queueGrowth(studentId); flushOutbox(); return; }
     try {
-      const response = await fetch(SHEETS_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ type: 'growth', growth: toRow(runOf(studentId)) })
-      });
-      const result = await response.json();
-      if (!result.ok) throw new Error(result.error && result.error.message ? result.error.message : '시트 저장 실패');
+      const result = await postJson({ type: 'growth', growth: toRow(runOf(studentId)) });
+      if (!result.ok && retryable(result)) throw new Error(result.error && result.error.message ? result.error.message : '시트 저장 실패');
+      if (!result.ok) console.error('Growth 시트가 성장판을 거절했습니다.', studentId, result.error);
       setSyncNote();
     } catch (error) {
       console.error('성장판을 시트에 저장하지 못했습니다.', error);
-      showToast('시트에 보내지 못했어요. 이 크롬북에는 저장돼 있어요.');
+      queueGrowth(studentId);
+      showToast('와이파이가 끊겨 아직 못 보냈어요. 연결되면 자동으로 보낼게요.');
     }
+  }
+  function queueGrowth(studentId) {
+    if (!outbox.growth.includes(studentId)) outbox.growth.push(studentId);
+    writeOutbox();
+    setSyncNote();
   }
   async function syncFromSheets() {
     try {
@@ -159,7 +230,11 @@
   }
   function setSyncNote() {
     const note = $('sync-note');
-    if (state.sheetSupported === false) {
+    if (pendingCount()) {
+      note.className = 'notice';
+      note.textContent = `시트에 아직 못 보낸 기록이 ${pendingCount()}개 있어요. 이 크롬북에는 저장돼 있고, 인터넷이 연결되면 자동으로 보내요.`;
+      note.hidden = false;
+    } else if (state.sheetSupported === false) {
       note.className = 'notice';
       note.textContent = '지금은 이 크롬북에만 저장돼요. Apps Script를 새 버전으로 배포하면 구글 시트 Growth 탭에도 함께 저장돼요.';
       note.hidden = false;
@@ -201,6 +276,7 @@
     $('class-tabs').innerHTML = classes().map((c) => `<button type="button" role="tab" data-class="${c}" class="${c === state.classNo ? 'is-selected' : ''}" aria-selected="${c === state.classNo}">${c}반</button>`).join('');
     const groups = groupsOf(state.classNo);
     $('group-tabs').hidden = state.mode === 'teacher';
+    $('class-tabs').hidden = state.mode === 'teacher' && !teacherUnlocked;
     $('group-tabs').innerHTML = groups.map((g) => `<button type="button" role="tab" data-group="${esc(g)}" class="${g === state.group ? 'is-selected' : ''}" aria-selected="${g === state.group}">${esc(g)}</button>`).join('');
   }
 
@@ -394,29 +470,19 @@
   }
 
   // 측정 앱의 기록 측정과 같은 방식으로 Records 시트(랭킹)에도 한 줄 추가합니다.
+  // 먼저 보관함에 넣고 보내므로, 와이파이가 끊겨도 연결되면 다시 보냅니다.
   async function sendToRecords(studentId, attempt) {
     const attemptNo = (recordCounts[studentId] || 0) + 1;
     recordCounts[studentId] = attemptNo;
-    const timestamp = attempt.at;
-    try {
-      const response = await fetch(SHEETS_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ type: 'record', record: {
-          student_id: studentId,
-          attempt_no: attemptNo,
-          record_seconds: attempt.sec,
-          activity_type: 'obstacle_run',
-          record_id: `${studentId}_${attemptNo}_${Math.round(attempt.sec * 100)}_${timestamp}`
-        } })
-      });
-      const result = await response.json();
-      if (!result.ok) throw new Error(result.error && result.error.message ? result.error.message : '랭킹 저장 실패');
-    } catch (error) {
-      recordCounts[studentId] = attemptNo - 1;
-      console.error('Records 시트에 저장하지 못했습니다.', error);
-      showToast('랭킹 시트에 저장하지 못했어요. 성장판에는 저장돼 있어요.');
-    }
+    outbox.records.push({
+      student_id: studentId,
+      attempt_no: attemptNo,
+      record_seconds: attempt.sec,
+      activity_type: 'obstacle_run',
+      record_id: `${studentId}_${attemptNo}_${Math.round(attempt.sec * 100)}_${attempt.at}`
+    });
+    writeOutbox();
+    if (await flushOutbox() === false) showToast('와이파이가 끊겨 랭킹에 아직 못 보냈어요. 연결되면 자동으로 보낼게요.');
   }
   async function loadRecordCounts() {
     try {
@@ -434,7 +500,23 @@
   }
 
   // ---- 교사 현황 ----
+  async function sha256(text) {
+    const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  function renderLock() {
+    $('teacher-view').innerHTML = `
+      <section class="card lock"><h3>🔒 선생님 화면이에요</h3>
+        <p>반 전체 기록을 보려면 선생님 번호를 입력하세요.</p>
+        <form class="row" id="pin-form" autocomplete="off">
+          <input id="pin-input" type="password" inputmode="numeric" maxlength="12" aria-label="선생님 번호" placeholder="번호">
+          <button type="submit">열기</button>
+        </form>
+        <p class="pin-error" id="pin-error" hidden>번호가 맞지 않아요.</p></section>`;
+    $('pin-input').focus();
+  }
   function renderTeacher() {
+    if (!teacherUnlocked) { renderLock(); return; }
     const list = students.filter((s) => Number(s.class) === state.classNo);
     const rows = list.map((s) => ({ s, r: runs[s.student_id] }));
     const started = rows.filter((x) => x.r && x.r.attempts.length);
@@ -453,7 +535,7 @@
       </section>
       <section class="card"><h3>학생들이 고른 집중 전략</h3>
         <div class="bars">${counts.map((c) => `<div style="--c:${c.st.color}"><span>${c.st.name}</span><i style="width:${(c.n / max) * 100}%"></i><span class="num">${c.n}</span></div>`).join('')}</div>
-        <div class="row"><button type="button" class="ghost" data-action="refresh">시트에서 다시 불러오기</button><button type="button" class="ghost" data-action="copy-csv">표를 CSV로 복사</button></div></section>
+        <div class="row"><button type="button" class="ghost" data-action="refresh">시트에서 다시 불러오기</button><button type="button" class="ghost" data-action="copy-csv">표를 CSV로 복사</button><button type="button" class="ghost" data-action="lock-teacher">🔒 잠그기</button></div></section>
       <section class="tablebox"><table><thead><tr><th>번호</th><th>이름</th><th>조</th><th>기준</th><th>최고(재측정)</th><th>변화</th><th>집중 전략</th><th>목표</th><th>상태</th><th>성찰</th></tr></thead><tbody>
       ${rows.map(({ s, r }) => {
         const base = r ? baseOf(r) : null, best = r ? bestReOf(r) : null, strat = r ? stratOf(r.focus) : null;
@@ -567,10 +649,28 @@
       case 'refresh':
         syncFromSheets().then((ok) => { setSyncNote(); render(); showToast(ok ? '시트 기록을 다시 불러왔어요.' : '시트에서 불러오지 못했어요.'); });
         break;
+      case 'lock-teacher':
+        teacherUnlocked = false;
+        try { sessionStorage.removeItem(TEACHER_UNLOCK_KEY); } catch (error) { /* 무시 */ }
+        state.mode = 'student'; render(); break;
       case 'copy-csv':
         navigator.clipboard.writeText(csv()).then(() => showToast('복사했어요. 스프레드시트에 붙여 넣으세요.'), () => showToast('복사하지 못했어요.'));
         break;
       default: break;
+    }
+  });
+  document.addEventListener('submit', async (event) => {
+    if (event.target.id !== 'pin-form') return;
+    event.preventDefault();
+    const pin = $('pin-input').value.trim();
+    if (pin && await sha256(pin) === TEACHER_PIN_SHA256) {
+      teacherUnlocked = true;
+      try { sessionStorage.setItem(TEACHER_UNLOCK_KEY, '1'); } catch (error) { /* 무시 */ }
+      render();
+    } else {
+      $('pin-error').hidden = false;
+      $('pin-input').value = '';
+      $('pin-input').focus();
     }
   });
   document.addEventListener('change', (event) => {
@@ -639,6 +739,15 @@
     }
     setSyncNote();
     if (state.timer !== 'running' && !document.activeElement?.matches('input, textarea')) render();
+    retryOutbox();
   }
+  // 인터넷이 다시 연결되거나, 화면으로 돌아오거나, 20초마다 못 보낸 기록을 다시 보냅니다.
+  async function retryOutbox() {
+    if (!pendingCount() || flushing) return;
+    if (await flushOutbox()) showToast('못 보냈던 기록을 모두 시트에 보냈어요.');
+  }
+  window.addEventListener('online', retryOutbox);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') retryOutbox(); });
+  window.setInterval(retryOutbox, RETRY_MS);
   init();
 })();
