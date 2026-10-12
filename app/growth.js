@@ -2,8 +2,8 @@
   'use strict';
 
   // ---- 성장판: 20m 왕복달리기 자기 개선 과정 ----
-  // 한 학생마다 5단계를 기록합니다.
-  //   1 기준 기록 → 2 짝 관찰(체크 카드) → 3 약한 전략 하나 + 목표 → 4 연습 후 재측정 → 5 성찰
+  // 한 학생마다 수업 전 → 4단계 → 수업 후를 기록합니다.
+  //   수업 전(자기효능감) → 1 기준 기록 → 2 짝 관찰(체크 카드) → 3 약한 전략 하나 + 목표 → 4 연습 후 재측정 → 수업 후(자기효능감 다시 쓰기 + 성찰)
   // 저장: 이 크롬북(localStorage)에 먼저 저장하고, 구글 시트(Growth 시트)에도 학생당 한 줄로 보냅니다.
   // 시트 연동이 안 되는 배포(옛 Apps Script)에서는 이 크롬북에만 저장하고 안내 문구를 띄웁니다.
 
@@ -39,12 +39,14 @@
       tips: ['제자리 팔치기 10초, 팔꿈치 90도 유지', '결승선 3m 뒤에 콘을 두고 콘까지 달리기', '마지막 5m는 "더 빠르게"를 외치며 통과'] }
   ];
   const STEPS = [
-    { t: '기준 기록', s: '처음 한 번 뛰기' },
-    { t: '짝 관찰', s: '체크 카드' },
-    { t: '목표 정하기', s: '전략 하나 고르기' },
-    { t: '연습·재측정', s: '다시 뛰고 비교' },
-    { t: '성찰', s: '한 줄 돌아보기' }
+    { t: '수업 전', s: '자기효능감 쓰기', dot: '전' },
+    { t: '기준 기록', s: '처음 한 번 뛰기', dot: '1' },
+    { t: '짝 관찰', s: '체크 카드', dot: '2' },
+    { t: '목표 정하기', s: '전략 하나 고르기', dot: '3' },
+    { t: '연습·재측정', s: '다시 뛰고 비교', dot: '4' },
+    { t: '수업 후', s: '자기효능감·성찰', dot: '후' }
   ];
+  const STEP_AFTER = STEPS.length - 1;
 
   const state = {
     mode: 'student', classNo: null, group: '', studentId: null, step: 0,
@@ -283,7 +285,13 @@
     return pick;
   }
   function stepDone(r, i) {
-    return [r.attempts.length > 0, r.observed, !!r.focus && r.goal != null, reOf(r).length > 0, !!(r.refl1 || r.refl2)][i];
+    return [!!r.effBefore && r.confBefore != null, r.attempts.length > 0, r.observed, !!r.focus && r.goal != null, reOf(r).length > 0,
+      !!(r.refl1 || r.refl2) || (!!r.effAfter && r.confAfter != null)][i];
+  }
+  // 아직 안 끝난 첫 단계 (모두 끝났으면 수업 후)
+  function firstOpenStep(r) {
+    const i = STEPS.findIndex((_, k) => !stepDone(r, k));
+    return i < 0 ? STEP_AFTER : i;
   }
   const getStudent = (id) => students.find((s) => s.student_id === id);
 
@@ -321,7 +329,7 @@
   function stepper(r) {
     return `<nav class="steps" aria-label="개선 단계">${STEPS.map((s, i) => {
       const done = stepDone(r, i);
-      return `<button type="button" data-step="${i}" class="${done ? 'done' : ''}" ${i === state.step ? 'aria-current="step"' : ''}><span class="dot" aria-hidden="true">${done ? '✓' : i + 1}</span><span class="txt"><b>${s.t}</b><small>${s.s}</small></span></button>`;
+      return `<button type="button" data-step="${i}" class="${done ? 'done' : ''}" ${i === state.step ? 'aria-current="step"' : ''}><span class="dot" aria-hidden="true">${done ? '✓' : s.dot}</span><span class="txt"><b>${s.t}</b><small>${s.s}</small></span></button>`;
     }).join('')}</nav>`;
   }
 
@@ -374,7 +382,7 @@
     const last = reOf(r).slice(-1)[0].sec;
     const missed = strat ? strat.checks.filter((_, i) => !r.checks[strat.key][i]) : [];
     if (r.goal != null && best <= r.goal) {
-      return `<div class="fb good"><b>목표 달성! 기준보다 ${f2(diff)}초 빨라졌어요.</b><span>${strat ? `${esc(strat.name)} 연습이 효과가 있었어요. ` : ''}5단계에서 무엇이 달라졌는지 적어 보세요. 시간이 남으면 다른 전략 하나를 더 골라 도전해요.</span></div>`;
+      return `<div class="fb good"><b>목표 달성! 기준보다 ${f2(diff)}초 빨라졌어요.</b><span>${strat ? `${esc(strat.name)} 연습이 효과가 있었어요. ` : ''}수업 후 단계에서 무엇이 달라졌는지 적어 보세요. 시간이 남으면 다른 전략 하나를 더 골라 도전해요.</span></div>`;
     }
     if (diff > 0) {
       const left = r.goal != null ? ` 목표까지 ${f2(best - r.goal)}초 남았어요.` : '';
@@ -387,29 +395,32 @@
     const before = when === 'before';
     const def = before ? r.effBefore : r.effAfter;
     const conf = before ? r.confBefore : r.confAfter;
-    const done = !!def && conf != null;
     const prev = !before && (r.effBefore || r.confBefore != null)
       ? `<div class="eff-prev"><b>수업 전의 나</b>${r.confBefore != null ? ` · 자신감 <span class="num">${r.confBefore}</span>점` : ''}${r.effBefore ? `<p>${esc(r.effBefore)}</p>` : ''}</div>` : '';
     const diff = !before && r.confBefore != null && r.confAfter != null
       ? `<span class="eff-diff">자신감 ${r.confBefore}점 → ${r.confAfter}점 (${r.confAfter - r.confBefore >= 0 ? '+' : ''}${r.confAfter - r.confBefore})</span>` : '';
-    return `<details class="eff" ${!before && !done ? 'open' : ''}><summary>✍️ ${before ? '수업 전' : '수업 후'} · 자기효능감 ${done ? '<span class="chip ok">작성함</span>' : '<span class="chip todo">아직 안 썼어요 · 눌러서 쓰기</span>'}${diff}</summary>
-      ${prev}
+    return `<div class="eff-block">${prev}
       <label class="q" for="eff-${when}">${before ? '자기효능감이란 무엇일까요? 내 말로 써 보세요.' : '이제 자기효능감을 다시 내 말로 써 보세요.'}<textarea id="eff-${when}" maxlength="300" placeholder="예: 내가 해낼 수 있다고 믿는 마음">${esc(def)}</textarea></label>
-      <div class="q">오늘 20m 왕복달리기 기록을 줄일 자신이 얼마나 있나요?</div>
-      <div class="conf" role="group" aria-label="자신감 점수">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-conf="${when}:${n}" aria-pressed="${conf === n}">${n}</button>`).join('')}<span class="lead">1 전혀 없음 · 5 매우 있음</span></div>
-      <div class="row"><button type="button" class="primary" data-action="save-efficacy" data-when="${when}">${before ? '수업 전 생각 저장' : '수업 후 생각 저장'}</button><span class="saved" id="eff-saved-${when}" hidden>저장했어요</span></div></details>`;
+      <div class="q">${before ? '오늘 20m 왕복달리기 기록을 줄일 자신이 얼마나 있나요?' : '지금은 기록을 줄일 자신이 얼마나 있나요?'} ${diff}</div>
+      <div class="conf" role="group" aria-label="자신감 점수">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-conf="${when}:${n}" aria-pressed="${conf === n}">${n}</button>`).join('')}<span class="lead">1 전혀 없음 · 5 매우 있음</span></div></div>`;
   }
   function panelHtml(r) {
     const i = state.step;
     if (i === 0) {
+      return `<div class="panel"><h3>수업 전 · 자기효능감</h3>
+        <p class="lead">달리기 전에 지금 내 생각을 적어요. 수업이 끝나면 다시 써서 얼마나 달라졌는지 비교해요.</p>
+        ${efficacyHtml(r, 'before')}
+        <div class="row"><button type="button" class="primary" data-action="save-efficacy" data-when="before">저장하고 1단계 기준 기록으로 →</button><button type="button" class="ghost" data-goto="1">나중에 쓰기</button></div></div>`;
+    }
+    if (i === 1) {
       const has = r.attempts.length > 0;
-      return `<div class="panel">${efficacyHtml(r, 'before')}<h3>1단계 · 기준 기록</h3>
+      return `<div class="panel"><h3>1단계 · 기준 기록</h3>
         <p class="lead">전략을 배우기 전에 지금 실력 그대로 한 번 뛰어요. 이 기록이 오늘 개선의 출발점이에요.</p>
         ${has ? `<div class="sentence">나의 기준 기록: <span class="num">${f2(baseOf(r))}</span>초</div>` : watchHtml()}
         ${feedbackHtml(r)}
-        ${has ? `<div class="row"><button type="button" class="primary" data-goto="1">2단계 짝 관찰로 →</button>${r.attempts.length === 1 ? '<button type="button" class="ghost" data-action="undo">기준 기록 다시 재기</button>' : ''}</div>` : ''}</div>`;
+        ${has ? `<div class="row"><button type="button" class="primary" data-goto="2">2단계 짝 관찰로 →</button>${r.attempts.length === 1 ? '<button type="button" class="ghost" data-action="undo">기준 기록 다시 재기</button>' : ''}</div>` : ''}</div>`;
     }
-    if (i === 1) {
+    if (i === 2) {
       const weak = weakest(r);
       return `<div class="panel"><h3>2단계 · 짝 관찰 체크 카드</h3>
         <p class="lead">짝이 뛰는 모습을 보고 잘 된 포인트에 체크해요. 반환점 회전은 휴대폰 슬로모션으로 찍어 함께 보면 정확해요.</p>
@@ -418,9 +429,9 @@
           ${s.checks.map((c, j) => `<label class="chk"><input type="checkbox" id="chk-${s.key}-${j}" data-check="${s.key}:${j}" ${r.checks[s.key][j] ? 'checked' : ''}><span>${esc(c)}</span></label>`).join('')}
           ${r.observed && s.key === weak ? '<span class="tag">가장 약한 전략</span>' : ''}</div>`).join('')}</div>
         <div class="row"><button type="button" class="primary" data-action="observed">관찰 끝, 약한 전략 찾기</button>
-        ${r.observed ? `<span class="lead">체크가 가장 적은 <b>${stratOf(weak).name}</b>부터 고쳐 보길 추천해요.</span><button type="button" class="ghost" data-goto="2">3단계로 →</button>` : ''}</div></div>`;
+        ${r.observed ? `<span class="lead">체크가 가장 적은 <b>${stratOf(weak).name}</b>부터 고쳐 보길 추천해요.</span><button type="button" class="ghost" data-goto="3">3단계로 →</button>` : ''}</div></div>`;
     }
-    if (i === 2) {
+    if (i === 3) {
       const base = baseOf(r);
       const rec = r.observed ? weakest(r) : '';
       const strat = stratOf(r.focus);
@@ -432,31 +443,33 @@
         <p class="lead">${base != null ? `기준 ${f2(base)}초에서 0.2초 줄인 값을 먼저 넣어 두었어요.` : '1단계 기준 기록을 먼저 재면 목표를 추천해 드려요.'}</p>
         ${strat && r.goal != null ? `<div class="sentence">나는 오늘 <span style="color:${strat.color}">${strat.name}</span>을(를) 고쳐서 <span class="num">${f2(r.goal)}</span>초에 도전한다.</div>
         <div class="fb"><b>${strat.name} 연습 방법</b><ul>${strat.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>
-        <div class="row"><button type="button" class="primary" data-goto="3">연습했으면 4단계 재측정으로 →</button></div>` : ''}</div>`;
+        <div class="row"><button type="button" class="primary" data-goto="4">연습했으면 4단계 재측정으로 →</button></div>` : ''}</div>`;
     }
-    if (i === 3) {
+    if (i === 4) {
       return `<div class="panel"><h3>4단계 · 연습하고 다시 재기</h3>
         <p class="lead">고른 전략만 연습한 뒤 다시 뛰어요. 여러 번 재도 돼요. 가장 좋은 기록을 기준 기록과 비교해 피드백을 보여 줘요.</p>
         ${baseOf(r) == null ? '<div class="fb bad"><b>1단계 기준 기록이 없어요.</b><span>먼저 기준 기록을 재 주세요.</span></div>' : watchHtml()}
         ${chartHtml(r)}
         ${feedbackHtml(r)}
-        <div class="row">${reOf(r).length ? '<button type="button" class="ghost" data-action="undo">마지막 기록 지우기</button><button type="button" class="primary" data-goto="4">5단계 성찰로 →</button>' : ''}</div></div>`;
+        <div class="row">${reOf(r).length ? '<button type="button" class="ghost" data-action="undo">마지막 기록 지우기</button><button type="button" class="primary" data-goto="5">수업 후 돌아보기로 →</button>' : ''}</div></div>`;
     }
     const base = baseOf(r), best = bestReOf(r), strat = stratOf(r.focus);
     const change = base != null && best != null ? `${base - best >= 0 ? '-' : '+'}${f2(Math.abs(base - best))}` : '-';
-    return `<div class="panel"><h3>5단계 · 성찰 한 줄</h3>
+    return `<div class="panel"><h3>수업 후 · 돌아보기</h3>
       <div class="summary"><span>기준 <b class="num">${base != null ? f2(base) : '-'}</b>초</span><span>최고 <b class="num">${best != null ? f2(best) : '-'}</b>초</span><span>변화 <b class="num">${change}</b>초</span><span>집중 전략 <b>${strat ? strat.name : '-'}</b></span></div>
+      <h4 class="sub">① 자기효능감 다시 쓰기</h4>
       ${efficacyHtml(r, 'after')}
+      <h4 class="sub">② 성찰</h4>
       <label class="q" for="refl1">어떤 전략이 효과가 있었나요? 몸에서 무엇이 달라졌나요?<textarea id="refl1" maxlength="300" placeholder="예: 반환선 앞에서 보폭을 줄이니 덜 미끄러지고 바로 출발할 수 있었다.">${esc(r.refl1)}</textarea></label>
       <label class="q" for="refl2">다음 시간에는 무엇을 바꿔 볼까요?<textarea id="refl2" maxlength="300" placeholder="예: 다음엔 팔치기를 크게 해서 마지막 5m 속도를 유지해 보겠다.">${esc(r.refl2)}</textarea></label>
-      <div class="row"><button type="button" class="primary" data-action="save-reflection">성찰 저장</button><span class="saved" id="refl-saved" hidden>저장했어요</span></div></div>`;
+      <div class="row"><button type="button" class="primary" data-action="save-reflection">수업 후 저장</button><span class="saved" id="refl-saved" hidden>저장했어요</span></div></div>`;
   }
 
   function renderCard() {
     const card = $('card');
     const student = getStudent(state.studentId);
     if (!student) {
-      card.innerHTML = '<div class="empty"><h3>왼쪽에서 학생을 고르세요</h3><p>한 학생마다 기준 기록, 짝 관찰, 목표, 재측정, 성찰 다섯 단계가 저장돼요.</p></div>';
+      card.innerHTML = '<div class="empty"><h3>왼쪽에서 학생을 고르세요</h3><p>한 학생마다 수업 전 생각, 기준 기록, 짝 관찰, 목표, 재측정, 수업 후 돌아보기가 저장돼요.</p></div>';
       return;
     }
     const r = runOf(student.student_id);
@@ -659,8 +672,7 @@
     if (b.dataset.studentId) {
       state.studentId = b.dataset.studentId;
       const r = runOf(state.studentId);
-      state.step = STEPS.findIndex((_, i) => !stepDone(r, i));
-      if (state.step < 0) state.step = 4;
+      state.step = firstOpenStep(r);
       resetTimer(); renderRoster(); renderCard(); return;
     }
     if (b.dataset.step) { state.step = Number(b.dataset.step); resetTimer(); renderCard(); return; }
@@ -709,8 +721,9 @@
         const text = $(`eff-${when}`).value.trim();
         if (when === 'before') r.effBefore = text; else r.effAfter = text;
         touch(state.studentId);
-        $(`eff-saved-${when}`).hidden = false;
-        if ((when === 'before' ? r.confBefore : r.confAfter) == null) showToast('자신감 점수(1~5)도 눌러 주세요.');
+        if ((when === 'before' ? r.confBefore : r.confAfter) == null) { showToast('자신감 점수(1~5)도 눌러 주세요.'); renderRoster(); break; }
+        showToast('수업 전 생각을 저장했어요.');
+        state.step = 1; renderCard(); renderRoster();
         break;
       }
       case 'save-reflection':
@@ -718,8 +731,8 @@
         r.refl2 = $('refl2').value.trim();
         if ($('eff-after')) r.effAfter = $('eff-after').value.trim();
         touch(state.studentId); renderRoster();
+        renderCard(); // 단계 표시와 'N/6단계 완료'도 함께 고칩니다
         $('refl-saved').hidden = false;
-        document.querySelector('.steps').outerHTML = stepper(r);
         break;
       case 'refresh':
         syncFromSheets().then((ok) => { setSyncNote(); render(); showToast(ok ? '시트 기록을 다시 불러왔어요.' : '시트에서 불러오지 못했어요.'); });
@@ -798,8 +811,7 @@
       state.group = focus.group_or_team;
       state.studentId = focus.student_id;
       const r = runOf(focus.student_id);
-      state.step = STEPS.findIndex((_, i) => !stepDone(r, i));
-      if (state.step < 0) state.step = 4;
+      state.step = firstOpenStep(r);
     } else {
       $('back-link').textContent = '🏠 측정 앱으로';
       if (window.location.hash === '#teacher') state.mode = 'teacher';
@@ -810,7 +822,7 @@
     if (focus) {
       // 시트에서 더 최근 내용을 받아왔다면 단계 위치를 다시 맞춥니다.
       const r = runOf(focus.student_id);
-      if (state.timer === 'idle') { state.step = STEPS.findIndex((_, i) => !stepDone(r, i)); if (state.step < 0) state.step = 4; }
+      if (state.timer === 'idle') state.step = firstOpenStep(r);
     }
     setSyncNote();
     if (state.timer !== 'running' && !document.activeElement?.matches('input, textarea')) render();
