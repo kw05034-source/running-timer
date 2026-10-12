@@ -418,7 +418,7 @@
       <label class="q" for="eff-${when}">${before ? '자기효능감이란 무엇일까요? 내 말로 써 보세요.' : '이제 자기효능감을 다시 내 말로 써 보세요.'}<textarea id="eff-${when}" maxlength="300" placeholder="자유롭게 써도 되고, 아래 문장틀로 시작해도 돼요.">${esc(def)}</textarea></label>
       ${framesHtml(`eff-${when}`, FRAMES[when])}
       <div class="q">${before ? '오늘 20m 왕복달리기 기록을 줄일 자신이 얼마나 있나요?' : '지금은 기록을 줄일 자신이 얼마나 있나요?'} ${diff}</div>
-      <div class="conf" role="group" aria-label="자신감 점수">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-conf="${when}:${n}" aria-pressed="${conf === n}">${n}</button>`).join('')}<span class="lead">1 전혀 없음 · 5 매우 있음</span></div></div>`;
+      <div class="conf" role="group" aria-label="자신감 점수 (1 전혀 없음 ~ 5 매우 있음)"><span class="end">전혀 없음</span>${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-conf="${when}:${n}" aria-pressed="${conf === n}">${n}</button>`).join('')}<span class="end">매우 있음</span></div></div>`;
   }
   function framesHtml(target, frames, title = '막막하면 문장틀을 눌러 시작해요. ____ 에 내 생각을 써요.') {
     return `<div class="frames"><span class="lead">${title}</span>${frames.map((f) => `<button type="button" class="frame" data-frame-target="${target}" data-frame="${esc(f)}">${esc(f)}</button>`).join('')}</div>`;
