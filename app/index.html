@@ -389,6 +389,15 @@
   #start-page .start-big--video{background:#fff; color:#10213e}
   #start-page .start-big--measure{background:#3dd8b0; color:#06352a}
   @media (max-width:560px){ #start-page .start-actions{grid-template-columns:1fr} }
+  #start-page .start-actions[hidden], #start-page .course-pick[hidden]{display:none}
+  #start-page .course-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
+  #start-page .course{
+    border:0; cursor:pointer; font:inherit; text-decoration:none; border-radius:22px; padding:28px 12px; background:#fff; color:#10213e;
+    display:flex; flex-direction:column; align-items:center; gap:8px; font-size:clamp(20px,3vw,28px); font-weight:900; box-shadow:0 18px 40px rgba(0,0,0,.3);
+  }
+  #start-page .course small{font-size:14px; font-weight:700; opacity:.75}
+  #start-page .course-back{margin-top:22px; border:0; cursor:pointer; font:inherit; font-weight:800; font-size:16px; padding:12px 24px; border-radius:999px; background:rgba(255,255,255,.14); color:#fff}
+  @media (max-width:560px){ #start-page .course-grid{grid-template-columns:1fr} }
   #mode-badge{display:inline-flex; align-items:center; padding:8px 16px; border-radius:999px; font-weight:800; font-size:15px; background:#e3faf4; color:#06352a}
   #mode-badge[data-mode="record"]{background:#fff0e6; color:#7a3a00}
 </style>
@@ -407,6 +416,14 @@
       <button type="button" class="start-big start-big--video" id="start-video">🎬 영상 보기<small>동기유발 영상을 먼저 봐요</small></button>
       <button type="button" class="start-big start-big--measure" id="start-measure">⏱ 측정 하기<small>바로 학생을 골라 측정해요</small></button>
     </div>
+    <div class="course-pick" id="course-pick" hidden>
+      <div class="course-grid">
+        <button type="button" class="course" id="course-bus">🚌 301번 버스<small>120m · 30초</small></button>
+        <a class="course" href="./warmup/zigzag.html">🏫 지그재그<small>콘 6개 40m · 20초</small></a>
+        <a class="course" href="./warmup/relay.html">🏃 이어달리기<small>4명 × 50m · 팀 35초</small></a>
+      </div>
+      <button type="button" class="course-back" id="course-back">← 뒤로</button>
+    </div>
   </div>
 </div>
 
@@ -419,6 +436,8 @@
       <div class="brand"><i>▶</i>달리기 · 웜업</div>
       <ul>
         <li><a href="#hero">홈</a></li>
+        <li><a href="./warmup/zigzag.html">지그재그</a></li>
+        <li><a href="./warmup/relay.html">이어달리기</a></li>
         <li><a href="#stats">기록</a></li>
         <li><button type="button" class="nav-cta" data-goto="start" style="background:rgba(255,255,255,.2)">처음으로</button></li>
         <li><button type="button" class="nav-cta" data-goto="app">측정 시작하기</button></li>
@@ -938,11 +957,22 @@
     paintMode();
     window.dispatchEvent(new CustomEvent('runmodechange'));
   }
-  document.getElementById('start-video').addEventListener('click', () => {
+  // '영상 보기'를 누르면 활동(301번 버스 / 지그재그 / 이어달리기)을 고릅니다.
+  const startActions = document.querySelector('#start-page .start-actions');
+  const coursePick = document.getElementById('course-pick');
+  function showCoursePick(show){
+    startActions.hidden = show;
+    coursePick.hidden = !show;
+  }
+  function openBus(){
+    showCoursePick(false);
     startPage.hidden = true;
     warmupPage.hidden = false;
     startClip();
-  });
+  }
+  document.getElementById('start-video').addEventListener('click', () => showCoursePick(true));
+  document.getElementById('course-back').addEventListener('click', () => showCoursePick(false));
+  document.getElementById('course-bus').addEventListener('click', openBus);
   document.getElementById('start-measure').addEventListener('click', () => {
     startPage.hidden = true;
     goToApp();
@@ -962,6 +992,9 @@
   if (window.location.hash === '#measure') {
     startPage.hidden = true;
     goToApp();
+  } else if (window.location.hash === '#warmup') {
+    // 지그재그·이어달리기 화면에서 "301번 버스"를 누르고 온 경우
+    openBus();
   }
 
   const backToWarmupBtn = document.getElementById('back-to-warmup-button');
