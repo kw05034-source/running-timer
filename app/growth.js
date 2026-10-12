@@ -319,22 +319,25 @@
   }
 
   function stepper(r) {
-    return `<nav class="steps" aria-label="개선 단계">${STEPS.map((s, i) => `<button type="button" data-step="${i}" class="${stepDone(r, i) ? 'done' : ''}" ${i === state.step ? 'aria-current="step"' : ''}><small>${i + 1}단계</small><b>${s.t}</b><small>${s.s}</small></button>`).join('')}</nav>`;
+    return `<nav class="steps" aria-label="개선 단계">${STEPS.map((s, i) => {
+      const done = stepDone(r, i);
+      return `<button type="button" data-step="${i}" class="${done ? 'done' : ''}" ${i === state.step ? 'aria-current="step"' : ''}><span class="dot" aria-hidden="true">${done ? '✓' : i + 1}</span><span class="txt"><b>${s.t}</b><small>${s.s}</small></span></button>`;
+    }).join('')}</nav>`;
   }
 
   function watchHtml() {
     if (state.timer === 'stopped' && state.pending) {
       const long = state.pending > CHECK_MAX_SEC;
-      return `<div class="confirm"><span>측정 기록</span><strong>${f2(state.pending)}초</strong>
-        ${long ? `<span>${CHECK_MAX_SEC}초보다 길어요. 정지를 늦게 눌렀다면 취소하고 다시 재 주세요.</span>` : ''}
-        <div class="row"><button type="button" class="primary" data-action="save-attempt">✓ 저장</button><button type="button" class="ghost" data-action="cancel-attempt">취소</button></div></div>`;
+      return `<div class="confirm"><span class="confirm-label">이 기록으로 저장할까요?</span><strong>${f2(state.pending)}<small>초</small></strong>
+        ${long ? `<span class="confirm-warn">${CHECK_MAX_SEC}초보다 길어요. 정지를 늦게 눌렀다면 취소하고 다시 재 주세요.</span>` : ''}
+        <div class="row"><button type="button" class="primary big" data-action="save-attempt">✓ 저장</button><button type="button" class="ghost big" data-action="cancel-attempt">취소</button></div></div>`;
     }
     const running = state.timer === 'running';
-    return `<div class="watch">
-      <div><div class="digits" id="digits">0.00<small>초</small></div>
+    return `<div class="watch${running ? ' is-running' : ''}">
+      <div><div class="watch-state">${running ? '● 측정 중' : '준비'}</div><div class="digits" id="digits">0.00<small>초</small></div>
         <div class="manual"><span>손으로 잰 기록 입력</span><input id="manual-sec" inputmode="decimal" placeholder="예: 6.42" aria-label="기록 직접 입력(초)"><button type="button" class="ghost" data-action="manual">입력</button></div></div>
-      <div class="watch-btns"><button type="button" class="go${running ? ' run' : ''}" data-action="toggle-timer">${running ? 'STOP' : 'START'}</button>
-        <span class="lead">Enter 키로도 시작·정지할 수 있어요.</span></div>
+      <div class="watch-btns"><button type="button" class="go${running ? ' run' : ''}" data-action="toggle-timer">${running ? '■ STOP' : '▶ START'}</button>
+        <span class="hint">Enter 키(부저)로도 시작·정지할 수 있어요.</span></div>
     </div>`;
   }
 
@@ -389,7 +392,7 @@
       ? `<div class="eff-prev"><b>수업 전의 나</b>${r.confBefore != null ? ` · 자신감 <span class="num">${r.confBefore}</span>점` : ''}${r.effBefore ? `<p>${esc(r.effBefore)}</p>` : ''}</div>` : '';
     const diff = !before && r.confBefore != null && r.confAfter != null
       ? `<span class="eff-diff">자신감 ${r.confBefore}점 → ${r.confAfter}점 (${r.confAfter - r.confBefore >= 0 ? '+' : ''}${r.confAfter - r.confBefore})</span>` : '';
-    return `<details class="eff" ${done ? '' : 'open'}><summary>✍️ ${before ? '수업 전' : '수업 후'} · 자기효능감 ${done ? '<span class="saved">작성함</span>' : ''}${diff}</summary>
+    return `<details class="eff" ${!before && !done ? 'open' : ''}><summary>✍️ ${before ? '수업 전' : '수업 후'} · 자기효능감 ${done ? '<span class="chip ok">작성함</span>' : '<span class="chip todo">아직 안 썼어요 · 눌러서 쓰기</span>'}${diff}</summary>
       ${prev}
       <label class="q" for="eff-${when}">${before ? '자기효능감이란 무엇일까요? 내 말로 써 보세요.' : '이제 자기효능감을 다시 내 말로 써 보세요.'}<textarea id="eff-${when}" maxlength="300" placeholder="예: 내가 해낼 수 있다고 믿는 마음">${esc(def)}</textarea></label>
       <div class="q">오늘 20m 왕복달리기 기록을 줄일 자신이 얼마나 있나요?</div>
@@ -457,8 +460,10 @@
       return;
     }
     const r = runOf(student.student_id);
-    const badge = `🏆 타이머로 잰 ${RECORD_MIN_SEC}초 이상 기록은 기준 기록·재측정 모두 랭킹에도 들어가요`;
-    card.innerHTML = `<div class="who"><h2>${esc(student.name)}</h2><span>${esc(student.class)}반 · ${esc(student.group_or_team)} · ${esc(student.number)}번</span></div><span class="mode-badge" data-mode="record">${badge}</span>${stepper(r)}${panelHtml(r)}`;
+    const badge = `🏆 ${RECORD_MIN_SEC}초 이상 기록은 랭킹에도 들어가요`;
+    const doneCount = STEPS.filter((_, i) => stepDone(r, i)).length;
+    card.innerHTML = `<div class="who"><div class="who-main"><h2>${esc(student.name)}</h2><span class="meta">${esc(student.class)}반 · ${esc(student.group_or_team)} · ${esc(student.number)}번</span></div>
+      <div class="who-side"><span class="progress-chip">${doneCount}/${STEPS.length}단계 완료</span><span class="mode-badge" data-mode="record">${badge}</span></div></div>${stepper(r)}${panelHtml(r)}`;
     paintDigits();
   }
 
@@ -474,6 +479,7 @@
     state.timer = 'running';
     state.startedAt = performance.now();
     renderCard();
+    document.querySelector('.watch')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     state.timerId = window.setInterval(paintDigits, 40);
   }
   function stopTimer() {

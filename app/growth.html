@@ -22,7 +22,7 @@
     --gold-100: #fff5e0;
     --red-600: #dc2626;
     --ink: #17233a;
-    --muted: #758199;
+    --muted: #5f6b82;
     --line: #e5eaf2;
     --paper: #ffffff;
     --canvas: #f6f8fc;
@@ -89,46 +89,68 @@
   .dots i.on { background: var(--mint-500); }
 
   .card { background: var(--paper); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: clamp(18px, 3vw, 30px); display: grid; gap: 18px; min-width: 0; }
-  .who { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
-  .who h2 { margin: 0; font-size: clamp(28px, 4vw, 40px); letter-spacing: -0.04em; }
-  .who span { color: var(--muted); }
-  .steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-  .steps button { display: grid; justify-items: start; gap: 2px; text-align: left; background: var(--canvas); padding: 10px 12px; font-weight: 600; font-size: 13px; border-top: 5px solid var(--line); border-radius: 10px; }
-  .steps button b { font-size: 15px; }
-  .steps button small { color: var(--muted); }
-  .steps button.done { border-top-color: var(--mint-500); }
-  .steps button[aria-current="step"] { background: var(--gold-100); border-top-color: var(--gold-500); }
-  h3 { margin: 0; font-size: 24px; letter-spacing: -0.03em; }
-  .lead { margin: 0; color: var(--muted); max-width: 62ch; }
-  .panel { display: grid; gap: 14px; }
+  .who { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px; }
+  .who-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+  .who h2 { margin: 0; font-size: clamp(32px, 4.4vw, 48px); line-height: 1.1; letter-spacing: -0.04em; }
+  .who .meta { color: var(--muted); font-size: 18px; font-weight: 700; }
+  .who-side { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .progress-chip { font-size: 15px; font-weight: 800; padding: 6px 14px; border-radius: 999px; background: var(--mint-100); color: var(--mint-700); }
+
+  /* 단계 표시: 번호 원 + 제목, 끝난 단계는 ✓, 지금 단계는 남색 */
+  .steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; position: relative; }
+  .steps button { display: flex; align-items: center; gap: 10px; text-align: left; background: var(--canvas); padding: 12px; font-weight: 600; border: 2px solid transparent; border-radius: 14px; }
+  .steps .dot { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 17px; font-weight: 800; background: #fff; color: var(--muted); border: 2px solid var(--line); }
+  .steps .txt { display: grid; min-width: 0; }
+  .steps button b { font-size: 17px; line-height: 1.25; }
+  .steps button small { color: var(--muted); font-size: 13px; line-height: 1.3; }
+  .steps button.done .dot { background: var(--mint-500); border-color: var(--mint-500); color: var(--navy-950); }
+  .steps button[aria-current="step"] { background: var(--navy-900); color: #fff; box-shadow: 0 10px 24px -12px rgba(16, 33, 62, .7); }
+  .steps button[aria-current="step"] small { color: #c8d4e8; }
+  .steps button[aria-current="step"] .dot { background: var(--gold-500); border-color: var(--gold-500); color: var(--navy-950); }
+
+  h3 { margin: 0; font-size: 26px; letter-spacing: -0.03em; }
+  .lead { margin: 0; color: var(--muted); max-width: 70ch; font-size: 17px; }
+  .hint { color: var(--muted); font-size: 14px; text-align: center; }
+  .panel { display: grid; gap: 16px; }
   .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-  .primary { background: var(--navy-900); color: #fff; }
-  .ghost { background: transparent; border: 1px solid var(--line); }
+  .primary { background: var(--navy-900); color: #fff; padding: 14px 22px; font-size: 17px; }
+  .ghost { background: #fff; border: 2px solid var(--line); padding: 12px 20px; font-size: 16px; }
+  .big { padding: 18px 32px; font-size: 22px; border-radius: 16px; }
   .lock { max-width: 420px; margin: 24px auto; text-align: center; }
   .lock .row { justify-content: center; }
   .lock input { font-size: 22px; width: 160px; text-align: center; letter-spacing: 6px; }
   .pin-error { color: var(--red-600, #c0392b); font-weight: 700; }
 
-  .watch { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; background: var(--canvas); border-radius: var(--radius-md); padding: 18px; }
-  .digits { font-weight: 800; font-size: clamp(56px, 9vw, 96px); line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
-  .digits small { font-size: .4em; color: var(--muted); margin-left: 6px; }
-  .watch-btns { display: grid; gap: 8px; min-width: 180px; }
-  .go { padding: 24px; font-size: 24px; border-radius: 18px; background: var(--mint-500); color: var(--navy-950); }
-  .go.run { background: var(--red-600); color: #fff; }
-  .confirm { display: grid; gap: 10px; background: var(--blue-100); border-radius: var(--radius-md); padding: 16px; }
-  .confirm strong { font-size: 32px; font-variant-numeric: tabular-nums; }
-  .manual { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
+  /* 타이머: 체육관에서 멀리서도 보이도록 크게. 측정 중에는 빨간 테두리로 바뀝니다. */
+  .watch { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; background: var(--canvas); border: 3px solid var(--line); border-radius: 22px; padding: 20px 24px; transition: background .2s, border-color .2s; }
+  .watch.is-running { background: #fff1f1; border-color: var(--red-600); }
+  .watch-state { display: inline-block; font-size: 15px; font-weight: 800; color: var(--muted); letter-spacing: .02em; }
+  .watch.is-running .watch-state { color: var(--red-600); animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+  .digits { font-weight: 800; font-size: clamp(76px, 11vw, 140px); line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+  .watch.is-running .digits { color: var(--red-600); }
+  .digits small { font-size: .32em; color: var(--muted); margin-left: 8px; letter-spacing: 0; }
+  .watch-btns { display: grid; gap: 8px; min-width: 260px; }
+  .go { min-height: 120px; padding: 20px 28px; font-size: 38px; letter-spacing: .02em; border-radius: 24px; background: var(--mint-500); color: var(--navy-950); box-shadow: 0 14px 30px -14px rgba(15, 143, 114, .9); }
+  .go:active { transform: translateY(2px); }
+  .go.run { background: var(--red-600); color: #fff; box-shadow: 0 14px 30px -14px rgba(220, 38, 38, .9); }
+  .confirm { display: grid; justify-items: center; text-align: center; gap: 10px; background: var(--blue-100); border: 3px solid var(--blue-500); border-radius: 22px; padding: 22px; }
+  .confirm-label { font-size: 20px; font-weight: 800; }
+  .confirm strong { font-size: clamp(64px, 9vw, 110px); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
+  .confirm strong small { font-size: .35em; color: var(--muted); margin-left: 6px; }
+  .confirm-warn { color: var(--orange-700); font-weight: 800; }
+  .manual { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); margin-top: 10px; }
   .manual input { width: 100px; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--line); }
 
   .strats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .strat { border: 1px solid var(--line); border-top: 6px solid var(--c); border-radius: var(--radius-md); padding: 14px; display: grid; gap: 8px; align-content: start; }
   .strat.weak { background: color-mix(in srgb, var(--c) 9%, #fff); }
   .strat header { display: flex; justify-content: space-between; gap: 8px; }
-  .strat h4 { margin: 0; font-size: 17px; }
+  .strat h4 { margin: 0; font-size: 19px; }
   .strat .score { font-weight: 800; color: var(--c); }
-  .chk { display: grid; grid-template-columns: 24px 1fr; gap: 8px; padding: 6px; border-radius: 8px; cursor: pointer; font-size: 15px; }
+  .chk { display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 8px; border-radius: 10px; cursor: pointer; font-size: 16px; }
   .chk:hover { background: var(--canvas); }
-  .chk input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--c); }
+  .chk input { width: 24px; height: 24px; margin: 1px 0 0; accent-color: var(--c); }
   .tag { justify-self: start; font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--c); color: #fff; }
 
   .pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -137,30 +159,33 @@
   .pick button span { color: var(--muted); font-weight: 500; font-size: 14px; }
   .pick button[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, #fff); }
   .goal input { width: 120px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 20px; font-weight: 800; }
-  .sentence { font-size: 19px; font-weight: 800; background: var(--gold-100); padding: 14px 16px; border-radius: 12px; }
+  .sentence { font-size: 21px; font-weight: 800; background: var(--gold-100); padding: 14px 16px; border-radius: 12px; }
 
   .fb { border-left: 6px solid var(--fbc, var(--blue-500)); background: var(--canvas); border-radius: 0 12px 12px 0; padding: 12px 16px; display: grid; gap: 4px; }
-  .fb b { font-size: 17px; }
+  .fb b { font-size: 19px; }
   .fb.good { --fbc: var(--mint-700); } .fb.warn { --fbc: var(--gold-500); } .fb.bad { --fbc: var(--orange-700); }
   .fb ul { margin: 0; padding-left: 20px; }
   .chart svg { width: 100%; height: auto; display: block; }
-  .chart text { font-size: 13px; fill: var(--ink); }
+  .chart text { font-size: 14px; fill: var(--ink); }
   .chart .soft { fill: var(--muted); }
   .summary { display: flex; flex-wrap: wrap; gap: 8px; }
-  .summary span { background: var(--canvas); padding: 6px 12px; border-radius: 9px; font-size: 14px; }
+  .summary span { background: var(--canvas); padding: 8px 14px; border-radius: 10px; font-size: 16px; }
   label.q { display: grid; gap: 6px; font-weight: 800; }
   .q { font-weight: 800; }
-  .eff { border: 2px solid var(--line); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; display: grid; gap: 10px; background: #fff; }
-  .eff[open] { border-color: var(--mint-500, #2bb673); }
-  .eff summary { cursor: pointer; font-weight: 800; font-size: 17px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .eff { border: 2px solid var(--line); border-radius: 14px; padding: 12px 16px; background: var(--blue-100); }
+  .eff[open] { border-color: var(--blue-500); background: #fff; }
+  .eff summary { cursor: pointer; font-weight: 800; font-size: 18px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .chip { font-size: 14px; font-weight: 800; padding: 3px 12px; border-radius: 999px; }
+  .chip.ok { background: var(--mint-100); color: var(--mint-700); }
+  .chip.todo { background: var(--orange-100); color: var(--orange-700); }
   .eff .row, .eff label.q, .eff .conf, .eff .eff-prev, .eff > .q { margin-top: 10px; }
   .conf { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .conf button { width: 52px; height: 52px; font-size: 20px; font-weight: 800; background: #fff; border: 2px solid var(--line); }
+  .conf button { width: 60px; height: 60px; font-size: 20px; font-weight: 800; background: #fff; border: 2px solid var(--line); }
   .conf button[aria-pressed="true"] { background: var(--navy-700, #1e3a5f); color: #fff; border-color: transparent; }
   .eff-prev { background: var(--blue-100); border-radius: var(--radius-sm); padding: 10px 14px; }
   .eff-prev p { margin: 4px 0 0; }
   .eff-diff { font-size: 14px; background: var(--gold-100); color: #8a5a00; padding: 2px 10px; border-radius: 999px; }
-  textarea { width: 100%; min-height: 90px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); resize: vertical; font-weight: 400; }
+  textarea { width: 100%; min-height: 90px; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line); resize: vertical; font-weight: 400; font-size: 17px; }
   .saved { color: var(--mint-700); font-weight: 800; }
   .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
 
@@ -187,15 +212,30 @@
   /* 측정 앱에서 학생 이름을 눌러 들어온 경우: 그 학생 한 명의 화면만 보여 줍니다. */
   body.is-focus #class-tabs, body.is-focus #group-tabs, body.is-focus .rail, body.is-focus .seg { display: none !important; }
   body.is-focus .layout { grid-template-columns: minmax(0, 1fr); }
+  /* 반 전체 화면은 왼쪽 명단 때문에 카드가 좁아서, 단계 표시를 번호 위·제목 아래로 줄입니다. */
+  body:not(.is-focus) .steps button { flex-direction: column; padding: 10px 6px; gap: 6px; text-align: center; }
+  body:not(.is-focus) .steps button small { display: none; }
+  body:not(.is-focus) .steps button b { font-size: 15px; }
+  /* 학생 화면에서는 장식용 코트 띠를 빼고 여백을 줄여 타이머가 첫 화면에 보이게 합니다. */
+  body.is-focus .court { display: none; }
+  body.is-focus .wrap { padding-top: 14px; gap: 14px; }
+  body.is-focus .board-header { min-height: 64px; padding-top: 8px; padding-bottom: 8px; }
   .mode-badge { justify-self: start; font-size: 13px; font-weight: 800; padding: 4px 12px; border-radius: 999px; background: var(--blue-100); color: var(--navy-700); }
   .mode-badge[data-mode="record"] { background: var(--gold-100); color: #8a5a00; }
 
-  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--navy-900); color: #fff; padding: 12px 20px; border-radius: 999px; font-weight: 700; max-width: calc(100vw - 32px); }
+  /* 알림은 화면 위쪽에 띄워 버튼·기록을 가리지 않게 합니다. */
+  .toast { position: fixed; left: 50%; top: 76px; transform: translateX(-50%); background: var(--navy-900); color: #fff; padding: 14px 26px; border-radius: 999px; font-weight: 800; font-size: 18px; max-width: calc(100vw - 32px); box-shadow: 0 16px 40px -12px rgba(13, 26, 49, .6); z-index: 10; }
 
   @media (max-width: 900px) {
     .layout { grid-template-columns: 1fr; }
     .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     .strats, .pick { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+    .steps button { flex-direction: column; padding: 10px 6px; gap: 6px; text-align: center; }
+    .steps button small { display: none; }
+    .steps button b { font-size: 14px; }
+    .watch { grid-template-columns: 1fr; }
+    .watch-btns { min-width: 0; }
     .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 560px) {
