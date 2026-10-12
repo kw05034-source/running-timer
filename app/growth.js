@@ -47,6 +47,18 @@
     { t: '수업 후', s: '자기효능감·성찰', dot: '후' }
   ];
   const STEP_AFTER = STEPS.length - 1;
+  // 빈칸(____)을 채우며 쓰는 문장틀
+  const BLANK = '____';
+  const FRAMES = {
+    before: [
+      `자기효능감은 내가 ${BLANK}을(를) 해낼 수 있다고 믿는 마음이다.`,
+      `나는 오늘 기록을 줄일 수 있을 것 같다 / 없을 것 같다. 왜냐하면 ${BLANK} 때문이다.`
+    ],
+    after: [
+      `수업 전에는 자기효능감을 ${BLANK}(이)라고 생각했는데, 지금은 ${BLANK}(이)라고 생각한다.`,
+      `오늘 ${BLANK}을(를) 해 보니 나도 ${BLANK} 할 수 있다는 자신감이 생겼다.`
+    ]
+  };
 
   const state = {
     mode: 'student', classNo: null, group: '', studentId: null, step: 0,
@@ -400,9 +412,21 @@
     const diff = !before && r.confBefore != null && r.confAfter != null
       ? `<span class="eff-diff">자신감 ${r.confBefore}점 → ${r.confAfter}점 (${r.confAfter - r.confBefore >= 0 ? '+' : ''}${r.confAfter - r.confBefore})</span>` : '';
     return `<div class="eff-block">${prev}
-      <label class="q" for="eff-${when}">${before ? '자기효능감이란 무엇일까요? 내 말로 써 보세요.' : '이제 자기효능감을 다시 내 말로 써 보세요.'}<textarea id="eff-${when}" maxlength="300" placeholder="예: 내가 해낼 수 있다고 믿는 마음">${esc(def)}</textarea></label>
+      <label class="q" for="eff-${when}">${before ? '자기효능감이란 무엇일까요? 내 말로 써 보세요.' : '이제 자기효능감을 다시 내 말로 써 보세요.'}<textarea id="eff-${when}" maxlength="300" placeholder="아래 문장틀을 눌러 빈칸(____)을 채워 보세요.">${esc(def)}</textarea></label>
+      ${framesHtml(`eff-${when}`, FRAMES[when])}
       <div class="q">${before ? '오늘 20m 왕복달리기 기록을 줄일 자신이 얼마나 있나요?' : '지금은 기록을 줄일 자신이 얼마나 있나요?'} ${diff}</div>
       <div class="conf" role="group" aria-label="자신감 점수">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-conf="${when}:${n}" aria-pressed="${conf === n}">${n}</button>`).join('')}<span class="lead">1 전혀 없음 · 5 매우 있음</span></div></div>`;
+  }
+  function framesHtml(target, frames, title = '문장틀을 누르면 칸에 들어가요. ____ 를 내 말로 바꿔요.') {
+    return `<div class="frames"><span class="lead">${title}</span>${frames.map((f) => `<button type="button" class="frame" data-frame-target="${target}" data-frame="${esc(f)}">${esc(f)}</button>`).join('')}</div>`;
+  }
+  // 다음 시간 예시: 짝 관찰 체크 카드에서 아직 체크받지 못한 항목 (집중 전략 먼저)
+  function nextFrames(r) {
+    const order = [...STRATS].sort((a, b) => (b.key === r.focus) - (a.key === r.focus));
+    const items = [];
+    order.forEach((s) => s.checks.forEach((c, j) => { if (!r.checks[s.key][j]) items.push(c); }));
+    const pool = items.length ? items : (stratOf(r.focus) || STRATS[0]).checks;
+    return pool.slice(0, 4).map((c) => `다음 시간에는 "${c}"에 체크받을 수 있도록 ${BLANK}을(를) 연습하겠다.`);
   }
   function panelHtml(r) {
     const i = state.step;
@@ -461,7 +485,8 @@
       ${efficacyHtml(r, 'after')}
       <h4 class="sub">② 성찰</h4>
       <label class="q" for="refl1">어떤 전략이 효과가 있었나요? 몸에서 무엇이 달라졌나요?<textarea id="refl1" maxlength="300" placeholder="예: 반환선 앞에서 보폭을 줄이니 덜 미끄러지고 바로 출발할 수 있었다.">${esc(r.refl1)}</textarea></label>
-      <label class="q" for="refl2">다음 시간에는 무엇을 바꿔 볼까요?<textarea id="refl2" maxlength="300" placeholder="예: 다음엔 팔치기를 크게 해서 마지막 5m 속도를 유지해 보겠다.">${esc(r.refl2)}</textarea></label>
+      <label class="q" for="refl2">다음 시간에는 무엇을 바꿔 볼까요?<textarea id="refl2" maxlength="300" placeholder="아래 짝 관찰 체크 카드 예시를 눌러 빈칸(____)을 채워 보세요.">${esc(r.refl2)}</textarea></label>
+      ${framesHtml('refl2', nextFrames(r), '짝 관찰 체크 카드에서 아직 체크받지 못한 항목이에요. 눌러서 시작해요.')}
       <div class="row"><button type="button" class="primary" data-action="save-reflection">수업 후 저장</button><span class="saved" id="refl-saved" hidden>저장했어요</span></div></div>`;
   }
 
@@ -685,6 +710,16 @@
       if (when === 'before') { r.confBefore = Number(n); if (text !== null) r.effBefore = text; } else { r.confAfter = Number(n); if (text !== null) r.effAfter = text; }
       touch(state.studentId);
       b.parentElement.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      return;
+    }
+    if (b.dataset.frameTarget) {
+      const ta = $(b.dataset.frameTarget);
+      if (!ta) return;
+      ta.value = ta.value.trim() ? `${ta.value.trim()}\n${b.dataset.frame}` : b.dataset.frame;
+      // 첫 번째 빈칸을 골라 두어 바로 덮어 쓸 수 있게 합니다.
+      const at = ta.value.indexOf(BLANK, ta.value.length - b.dataset.frame.length);
+      ta.focus();
+      if (at >= 0) ta.setSelectionRange(at, at + BLANK.length);
       return;
     }
     if (b.dataset.focus && r) { r.focus = b.dataset.focus; touch(state.studentId); renderCard(); return; }
