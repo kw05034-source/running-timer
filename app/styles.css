@@ -205,9 +205,9 @@ button:focus-visible, a:focus-visible {
 
 .students-grid {
   display: grid;
-  /* 카드 폭이 180px 이상이면 화면 폭에 맞춰 한 줄에 5~6명까지 들어갑니다. */
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
+  /* 크롬북 폭에서 한 줄에 4명 (좁은 화면에서는 아래 @media에서 3명·2명) */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .student-card {
@@ -230,7 +230,7 @@ button:focus-visible, a:focus-visible {
 .student-select {
   width: 100%;
   min-height: 0;
-  padding: 16px 16px 14px;
+  padding: 20px 20px 18px;
   display: block;
   border: 0;
   color: inherit;
@@ -240,43 +240,43 @@ button:focus-visible, a:focus-visible {
 
 .student-select:active { background: #f9fbff; }
 
-.student-card-top { display: flex; align-items: center; gap: 10px; }
+.student-card-top { display: flex; align-items: center; gap: 12px; }
 .student-card-top > div { min-width: 0; }
 .student-avatar {
-  width: 38px;
-  height: 38px;
+  width: 46px;
+  height: 46px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
   border-radius: 13px;
   color: var(--blue-500);
   background: var(--blue-100);
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 800;
 }
 
 .student-card:nth-child(3n + 2) .student-avatar { color: #0eae89; background: var(--mint-100); }
 .student-card:nth-child(3n + 3) .student-avatar { color: #e87d38; background: var(--orange-100); }
-.student-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0 0 2px; color: var(--navy-900); font-size: 19px; font-weight: 800; letter-spacing: -0.06em; }
-.student-meta { white-space: nowrap; color: var(--muted); font-size: 12px; font-weight: 600; }
+.student-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0 0 2px; color: var(--navy-900); font-size: 22px; font-weight: 800; letter-spacing: -0.06em; }
+.student-meta { white-space: nowrap; color: var(--muted); font-size: 13px; font-weight: 600; }
 
-.student-stats { margin: 12px 0 0; padding-right: 60px; display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.student-stats { margin: 16px 0 0; padding-right: 64px; display: flex; flex-wrap: wrap; gap: 2px 12px; }
 .student-stat { display: flex; align-items: baseline; gap: 4px; }
-.student-stat dt { color: var(--muted); font-size: 11px; }
-.student-stat dd { margin: 0; color: var(--navy-800); font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 14px; font-weight: 500; }
+.student-stat dt { color: var(--muted); font-size: 12px; }
+.student-stat dd { margin: 0; color: var(--navy-800); font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 16px; font-weight: 600; }
 .student-stat dd small { margin-left: 1px; color: var(--muted); font-family: inherit; font-size: 10px; }
 
 .student-history {
   /* 기록 보기는 카드 오른쪽 아래 작은 버튼으로 둡니다. */
   position: absolute;
-  bottom: 10px;
-  right: 10px;
-  height: 30px;
-  padding: 0 9px;
+  bottom: 14px;
+  right: 14px;
+  height: 34px;
+  padding: 0 11px;
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   border: 1px solid #e4e9f2;
   border-radius: 10px;
@@ -382,7 +382,12 @@ button:focus-visible, a:focus-visible {
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
 
+@media (max-width: 1100px) {
+  .students-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 @media (max-width: 860px) {
+  .students-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .main-content { padding-top: 55px; }
   .selection-toolbar { grid-template-columns: 1fr; }
   .selection-filter + .selection-filter { padding-top: 18px; padding-left: 0; border-top: 1px solid var(--line); border-left: 0; }
