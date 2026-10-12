@@ -205,11 +205,13 @@ button:focus-visible, a:focus-visible {
 
 .students-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  /* 카드 폭이 180px 이상이면 화면 폭에 맞춰 한 줄에 5~6명까지 들어갑니다. */
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
 }
 
 .student-card {
+  position: relative;
   min-width: 0;
   padding: 0;
   display: flex;
@@ -227,8 +229,8 @@ button:focus-visible, a:focus-visible {
 
 .student-select {
   width: 100%;
-  min-height: 148px;
-  padding: 21px 20px 16px;
+  min-height: 0;
+  padding: 16px 16px 14px;
   display: block;
   border: 0;
   color: inherit;
@@ -238,10 +240,11 @@ button:focus-visible, a:focus-visible {
 
 .student-select:active { background: #f9fbff; }
 
-.student-card-top { display: flex; align-items: start; gap: 13px; }
+.student-card-top { display: flex; align-items: center; gap: 10px; }
+.student-card-top > div { min-width: 0; }
 .student-avatar {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
@@ -254,32 +257,35 @@ button:focus-visible, a:focus-visible {
 
 .student-card:nth-child(3n + 2) .student-avatar { color: #0eae89; background: var(--mint-100); }
 .student-card:nth-child(3n + 3) .student-avatar { color: #e87d38; background: var(--orange-100); }
-.student-name { margin: 1px 0 3px; color: var(--navy-900); font-size: 17px; font-weight: 800; letter-spacing: -0.06em; }
-.student-meta { color: var(--muted); font-size: 11px; font-weight: 500; }
+.student-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0 0 2px; color: var(--navy-900); font-size: 19px; font-weight: 800; letter-spacing: -0.06em; }
+.student-meta { white-space: nowrap; color: var(--muted); font-size: 12px; font-weight: 600; }
 
-.student-stats { margin-top: 20px; display: flex; gap: 22px; }
+.student-stats { margin: 12px 0 0; padding-right: 60px; display: flex; flex-wrap: wrap; gap: 2px 12px; }
 .student-stat { display: flex; align-items: baseline; gap: 4px; }
 .student-stat dt { color: var(--muted); font-size: 11px; }
 .student-stat dd { margin: 0; color: var(--navy-800); font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 14px; font-weight: 500; }
 .student-stat dd small { margin-left: 1px; color: var(--muted); font-family: inherit; font-size: 10px; }
 
 .student-history {
-  min-height: 40px;
-  padding: 0 20px;
+  /* 기록 보기는 카드 오른쪽 아래 작은 버튼으로 둡니다. */
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  height: 30px;
+  padding: 0 9px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  border: 0;
-  border-top: 1px solid #f0f2f6;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #e4e9f2;
+  border-radius: 10px;
   color: var(--blue-500);
   background: #fbfcff;
-  font-size: 11px;
-  font-weight: 700;
-  text-align: left;
 }
 
 .student-history:hover { color: var(--navy-900); background: var(--blue-100); }
-.student-history span { font-size: 15px; line-height: 1; }
+.student-history span { font-size: 13px; line-height: 1; }
 
 .screen-footer { margin-top: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #9ba6b9; font-size: 11px; }
 .footer-lock { color: var(--mint-500); font-size: 14px; }
@@ -378,7 +384,6 @@ button:focus-visible, a:focus-visible {
 
 @media (max-width: 860px) {
   .main-content { padding-top: 55px; }
-  .students-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .selection-toolbar { grid-template-columns: 1fr; }
   .selection-filter + .selection-filter { padding-top: 18px; padding-left: 0; border-top: 1px solid var(--line); border-left: 0; }
   .timer-layout, .confirm-layout { min-height: 0; grid-template-columns: 1fr; gap: 42px; padding: 65px 0 20px; }
@@ -405,10 +410,7 @@ button:focus-visible, a:focus-visible {
   .class-tab, .group-tab { min-width: 0; padding: 0 5px; }
   .list-heading { margin-top: 39px; }
   .list-heading h2 { font-size: 19px; }
-  .students-grid { grid-template-columns: 1fr; gap: 10px; }
-  .student-select { min-height: 128px; padding: 18px; }
-  .student-history { padding: 0 18px; }
-  .student-stats { margin-top: 16px; }
+  .students-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .screen-footer { margin-top: 32px; text-align: center; line-height: 1.6; }
   .screen-topbar { align-items: flex-start; }
   .timer-layout, .confirm-layout { padding-top: 48px; gap: 32px; }
