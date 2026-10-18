@@ -418,9 +418,9 @@
     </div>
     <div class="course-pick" id="course-pick" hidden>
       <div class="course-grid">
-        <button type="button" class="course" id="course-bus">🚌 301번 버스<small>120m · 30초</small></button>
+        <button type="button" class="course" id="course-bus">🚌 301번 버스<small>20m 왕복 · 20초</small></button>
         <a class="course" href="./warmup/zigzag.html">🏫 지그재그<small>콘 6개 40m · 20초</small></a>
-        <a class="course" href="./warmup/relay.html">🏃 이어달리기<small>4명 × 50m · 팀 35초</small></a>
+        <a class="course" href="./warmup/relay.html">🏃 이어달리기<small>4명 × 40m · 팀 대결</small></a>
       </div>
       <button type="button" class="course-back" id="course-back">← 뒤로</button>
     </div>
@@ -460,10 +460,10 @@
           <span class="eyebrow"><s></s>오늘의 체육수업 · 목표 시간 안에 달리기</span>
           <h1>301번 버스,<br><em>곧 출발!</em></h1>
           <p class="ask">시간 안에 도착할 수 있을까?</p>
-          <p class="lede">정류장까지 <b data-d>120</b>m, 버스 출발까지 <b data-t>30</b>초.<br>출발 신호에 맞춰 달려 목표 시간 안에 결승선을 통과해 보세요.</p>
+          <p class="lede">정류장까지 <b data-d>20</b>m 왕복, 버스 출발까지 <b data-t>30</b>초.<br>출발 신호에 맞춰 달려 목표 시간 안에 결승선을 통과해 보세요.</p>
           <div class="chips">
-            <span><b data-d>120</b>m 달리기</span>
-            <span>목표 <b data-t>30</b>초 이내</span>
+            <span><b data-d>20</b>m 왕복 달리기</span>
+            <span>목표 <b data-t>20</b>초 이내</span>
             <span>나의 기록 확인</span>
           </div>
           <button type="button" class="start-btn" data-goto="app">실제 측정 시작하기 →</button>
@@ -473,7 +473,7 @@
           <span class="fail__tag">진행 종료</span>
           <h1 class="fail__title">실패</h1>
           <p class="fail__msg">목표 <b data-t>30</b>초를 <b id="over">0.00</b>초 넘겨 도착했습니다.</p>
-          <p class="fail__sub">다음엔 초반 10초에 속도를 올려보세요. 같은 코스로 바로 다시 도전할 수 있습니다.</p>
+          <p class="fail__sub">다음엔 반환점을 돌 때 몸을 낮추고 바로 출발해 보세요. 같은 코스로 바로 다시 도전할 수 있습니다.</p>
           <button class="fail__btn" id="retry" type="button">다시 도전</button>
           <button type="button" class="start-btn start-btn--ghost" data-goto="app">실제 측정 시작하기 →</button>
         </div>
@@ -799,8 +799,8 @@
 
   /* ================= STOPWATCH ================= */
   // 거리(m)·목표 시간(초)은 아래 두 값만 바꾸면 페이지 안의 모든 표시가 자동으로 맞춰집니다.
-  const DISTANCE_M = 120;   // 정류장까지 거리(m) — 여기 숫자만 바꾸세요
-  const TARGET_SEC = 30;    // 목표 시간(초) — 여기 숫자만 바꾸세요
+  const DISTANCE_M = 20;    // 왕복 구간 거리(m) — 여기 숫자만 바꾸세요
+  const TARGET_SEC = 20;    // 목표 시간(초) — 여기 숫자만 바꾸세요
   document.querySelectorAll('#warmup-page [data-d]').forEach((el) => { el.textContent = DISTANCE_M; });
   document.querySelectorAll('#warmup-page [data-t]').forEach((el) => { el.textContent = TARGET_SEC; });
   const TARGET_MS = TARGET_SEC * 1000;
