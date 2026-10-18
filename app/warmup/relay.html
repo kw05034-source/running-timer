@@ -407,27 +407,27 @@
         <span class="eyebrow"><s></s>오늘의 체육수업 · 이어달리기 과제</span>
         <h1>바통을 이어,<br><em>하나의 팀으로!</em></h1>
         <p class="ask">네 명의 달리기가 하나로 이어질 수 있을까?</p>
-        <p class="lede">주자 4명이 <b data-d>50</b>m씩, 바통을 넘겨 모두 <b>200</b>m. 팀 목표 <b data-t>35</b>초.<br>첫 주자 출발과 함께 시작하고, 마지막 주자가 결승선을 통과하면 정지를 누르세요.</p>
+        <p class="lede">주자 4명이 <b data-d>40</b>m씩, 바통을 넘겨 모두 <b>160</b>m. 다른 팀과 겨뤄요.<br>첫 주자 출발과 함께 시작하고, 마지막 주자가 결승선을 통과하면 정지를 누르세요.</p>
         <div class="chips">
-          <span>4 × <b data-d>50</b>m 이어달리기</span>
-          <span>팀 목표 <b data-t>35</b>초 이내</span>
+          <span>4 × <b data-d>40</b>m 이어달리기</span>
+          <span>다른 팀과 기록 대결</span>
           <span>랩 버튼으로 주자별 기록</span>
         </div>
       </div>
 
       <!-- replace the copy once the run is stopped -->
       <div class="result result--ok" id="success">
-        <span class="result__tag">팀 목표 달성</span>
-        <h1 class="result__title">성공</h1>
-        <p class="result__msg">팀 목표보다 <b id="under">0.00</b>초 빨리 결승선을 통과했습니다.</p>
-        <p class="result__sub">네 명이 하나로 이어진 달리기! 바통 터치를 더 다듬어 기록 단축에 다시 도전해 보세요.</p>
+        <span class="result__tag">결승 통과</span>
+        <h1 class="result__title">완주</h1>
+        <p class="result__msg">우리 팀 기록은 <b id="under">0.00</b>초입니다.</p>
+        <p class="result__sub">다른 팀 기록과 비교해 보세요. 바통 터치를 더 다듬으면 기록을 줄일 수 있어요.</p>
         <button class="result__btn" id="retryOk" type="button">다시 도전</button>
       </div>
 
       <div class="result result--fail" id="fail">
         <span class="result__tag">반 발 차이</span>
         <h1 class="result__title">실패</h1>
-        <p class="result__msg">팀 목표 <b data-t>35</b>초를 <b id="over">0.00</b>초 넘겨 들어왔습니다.</p>
+        <p class="result__msg">우리 팀 기록은 <b id="over">0.00</b>초입니다.</p>
         <p class="result__sub">바통 터치 구간에서 받는 주자가 미리 출발해 속도를 붙여 보세요. 같은 팀으로 바로 다시 도전할 수 있습니다.</p>
         <button class="result__btn" id="retry" type="button">다시 도전</button>
       </div>
@@ -550,7 +550,7 @@
   replay.addEventListener('click', startClip);
 
   /* ================= STOPWATCH ================= */
-  const TARGET_MS = (parseFloat(document.querySelector('[data-t]').textContent) || 30) * 1000;
+  // 이어달리기는 팀 목표 시간이 없고 다른 팀과 겨루는 활동이라, 정지하면 성공/실패 판정 없이 팀 기록만 보여 줍니다.
   let running = false, result = '', base = 0, mark = 0, raf = 0, laps = [];
 
   const pad = (n, w = 2) => String(n).padStart(w, '0');
@@ -572,30 +572,25 @@
     csEl.textContent = '.' + t.cs;
     sTime.textContent = t.full;
 
-    const left = TARGET_MS - ms;
-    total.textContent = left < 0
-      ? '+' + (-left / 1000).toFixed(2) + ' 초 초과'
-      : result === 'ok' ? (left / 1000).toFixed(2) + '초 일찍 도착'
-      : (ms === 0 ? '목표 ' + (TARGET_MS / 1000) + '초' : (left / 1000).toFixed(2) + '초 남음');
-
-    bar.style.width = Math.min(100, (ms / TARGET_MS) * 100) + '%';
-    track.classList.toggle('over', left < 0);
+    total.textContent = (Math.floor(ms / 10) / 100).toFixed(2) + ' 초';
+    bar.style.width = (running || ms > 0) ? '100%' : '0%';
 
     if (running) raf = requestAnimationFrame(paint);
   }
 
-  // "정지" pressed: judge the run only now — within the target is a success, past it a fail
+  // "정지": 마지막 주자가 결승선을 통과하면 팀 기록을 보여 줍니다.
   function finish(){
     stop();
-    showResult(base > TARGET_MS ? 'fail' : 'ok');
+    showResult('ok');
   }
 
   function showResult(kind){
     result = kind;
     paint();
     sync();
-    overEl.textContent  = ((base - TARGET_MS) / 1000).toFixed(2);
-    underEl.textContent = ((TARGET_MS - base) / 1000).toFixed(2);
+    const rec = (Math.floor(base / 10) / 100).toFixed(2);   // 스탑워치 숫자와 같게 버림
+    overEl.textContent  = rec;
+    underEl.textContent = rec;
     document.body.classList.add(kind === 'ok' ? 'is-success' : 'is-failed');
     const v = kind === 'ok' ? okClip : failClip;   // a course may have no result clip
     if (!v) return;
@@ -618,7 +613,7 @@
     sw.classList.toggle('is-success', result === 'ok');
     toggleText.textContent = result ? '다시 도전' : (running ? '정지' : '시작');
     icoPlay.innerHTML = running ? ICON_PAUSE : ICON_PLAY;
-    stateEl.textContent = result === 'fail' ? '실패' : result === 'ok' ? '성공' : (running ? '러닝 중' : '대기');
+    stateEl.textContent = result === 'fail' ? '실패' : result === 'ok' ? '완주' : (running ? '러닝 중' : '대기');
     sState.textContent = stateEl.textContent;
     sState.style.color = result === 'fail' ? '#dc2626' : result === 'ok' ? '#12a150' : '';
   }
@@ -671,7 +666,7 @@
     laps.slice().reverse().forEach((l, i) => {
       const n = laps.length - i;
       const li = document.createElement('li');
-      li.innerHTML = `<span>랩 ${n} · ${(l.split / 1000).toFixed(2)}초</span>${fmt(l.total).full}`;
+      li.innerHTML = `<span>주자 ${n} · ${(l.split / 1000).toFixed(2)}초</span>${fmt(l.total).full}`;
       lapsEl.prepend(li);
     });
     while (lapsEl.children.length > 5) lapsEl.lastElementChild.remove();
