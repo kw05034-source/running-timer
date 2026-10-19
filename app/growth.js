@@ -12,6 +12,7 @@
   const STORAGE_KEY = 'movement-records-growth-v1';
   const CLASS_STORAGE_KEY = 'movement-records-selected-class-v1';
   const GROUP_STORAGE_KEY = 'movement-records-selected-group-v1';
+  const PARTNER_STORAGE_KEY = 'movement-records-partner-v1';
   const OUTBOX_KEY = 'movement-records-growth-outbox-v1'; // 와이파이가 끊겨 못 보낸 전송 목록
   const RETRY_MS = 20000;
   const TEACHER_UNLOCK_KEY = 'growth-teacher-unlocked';
@@ -338,11 +339,14 @@
     for (let k = 0; k < list.length; k += 2) pairs.push(list.slice(k, k + 2));
     return pairs;
   }
-  function partnersOf(id) {
+  // 조 이름이 "견학" 또는 "불참"으로 시작하는 학생(체육 수업에 참여하지 않는 학생)은 짝에서 빼요.
+  const isOut = (s) => /^(견학|불참)/.test(s.group_or_team);
+  const classmates = (me) => students.filter((s) => Number(s.class) === Number(me.class) && !isOut(s));
+  function autoPartnersOf(id) {
     const me = getStudent(id);
-    if (!me) return [];
+    if (!me || isOut(me)) return [];
     const byNo = (a, b) => a.number - b.number;
-    const mates = students.filter((s) => Number(s.class) === Number(me.class));
+    const mates = classmates(me);
     const boys = mates.filter((s) => s.group_or_team.startsWith('남')).sort(byNo);
     const girls = mates.filter((s) => s.group_or_team.startsWith('여')).sort(byNo);
     let pairs;
@@ -357,10 +361,31 @@
     const mine = pairs.find((p) => p.some((s) => s.student_id === id)) || [];
     return mine.filter((s) => s.student_id !== id);
   }
+  // 학생이 직접 고른 짝 (결석·부상 등으로 바꿀 때). 이 크롬북에만 저장돼요.
+  function loadChosen() {
+    try { return JSON.parse(localStorage.getItem(PARTNER_STORAGE_KEY) || '{}'); } catch (error) { return {}; }
+  }
+  function chosenPartnerOf(id) {
+    const p = getStudent(loadChosen()[id]);
+    const me = getStudent(id);
+    return p && me && p.student_id !== id && !isOut(p) && Number(p.class) === Number(me.class) ? p : null;
+  }
+  function setChosenPartner(id, partnerId) {
+    const chosen = loadChosen();
+    if (partnerId) chosen[id] = partnerId; else delete chosen[id];
+    try { localStorage.setItem(PARTNER_STORAGE_KEY, JSON.stringify(chosen)); } catch (error) { /* 무시 */ }
+  }
   function partnerHtml(id) {
-    const ps = partnersOf(id);
-    if (!ps.length) return '';
-    return `<div class="sentence partner">내 짝: ${ps.map((s) => `<b>${esc(s.number)}번 ${esc(s.name)}</b>`).join(', ')}</div>`;
+    const me = getStudent(id);
+    if (!me || isOut(me)) return '';
+    const chosen = chosenPartnerOf(id);
+    const ps = chosen ? [chosen] : autoPartnersOf(id);
+    const names = ps.length ? ps.map((s) => `<b>${esc(s.number)}번 ${esc(s.name)}</b>`).join(', ') : '<b>아직 없어요</b>';
+    const options = classmates(me).filter((s) => s.student_id !== id).sort((a, b) => a.number - b.number)
+      .map((s) => `<option value="${esc(s.student_id)}" ${chosen && chosen.student_id === s.student_id ? 'selected' : ''}>${esc(s.number)}번 ${esc(s.name)}</option>`).join('');
+    return `<div class="sentence partner"><span>내 짝: ${names}${chosen ? ' <small>(직접 고름)</small>' : ''}</span>
+      <label class="partner-change"><span>짝 바꾸기</span><select id="partner-select" data-partner>
+        <option value="">번호순 자동 짝</option>${options}</select></label></div>`;
   }
 
   // ---- 학생 화면 ----
@@ -835,6 +860,11 @@
     }
   });
   document.addEventListener('change', (event) => {
+    if (event.target.matches('[data-partner]') && state.studentId) {
+      setChosenPartner(state.studentId, event.target.value);
+      renderCard();
+      return;
+    }
     const key = event.target.dataset && event.target.dataset.check;
     if (!key || !state.studentId) return;
     const [k, j] = key.split(':');
