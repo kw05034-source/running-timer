@@ -120,6 +120,11 @@
   .lock .row { justify-content: center; }
   .lock input { font-size: 22px; width: 160px; text-align: center; letter-spacing: 6px; }
   .pin-error { color: var(--red-600, #c0392b); font-weight: 700; }
+  .danger { color: #b42318; border-color: #f3c0bb; }
+  button.primary.danger { background: #b42318; color: #fff; border-color: #b42318; }
+  .reset-box { margin-top: 14px; padding: 14px 16px; border: 1px solid #f3c0bb; background: #fff5f4; border-radius: 12px; }
+  .reset-box p { margin: 0 0 10px; line-height: 1.5; }
+  .reset-box input { font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; min-height: 44px; }
 
   /* 타이머: 체육관에서 멀리서도 보이도록 크게. 측정 중에는 빨간 테두리로 바뀝니다. */
   .watch { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; background: var(--canvas); border: 3px solid var(--line); border-radius: 22px; padding: 20px 24px; transition: background .2s, border-color .2s; }

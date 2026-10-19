@@ -13,6 +13,9 @@
   const CLASS_STORAGE_KEY = 'movement-records-selected-class-v1';
   const GROUP_STORAGE_KEY = 'movement-records-selected-group-v1';
   const PARTNER_STORAGE_KEY = 'movement-records-partner-v1';
+  // 전체 초기화: 시트의 마지막 초기화 시각을 기억해 두고, 바뀌면 이 크롬북의 기록도 지웁니다.
+  const RESET_MARK_KEY = 'movement-records-reset-at-v1';
+  const RECORDS_STORAGE_KEY = 'movement-records-obstacle-run-v1'; // 측정 앱(app.js)의 기록
   const OUTBOX_KEY = 'movement-records-growth-outbox-v1'; // 와이파이가 끊겨 못 보낸 전송 목록
   const RETRY_MS = 20000;
   const TEACHER_UNLOCK_KEY = 'growth-teacher-unlocked';
@@ -651,6 +654,29 @@
   }
 
   // ---- 교사 현황 ----
+  async function resetAll() {
+    const pin = $('reset-pin').value.trim();
+    const err = $('reset-error');
+    const fail = (msg) => { err.textContent = msg; err.hidden = false; };
+    if (!pin) { fail('선생님 번호를 넣어 주세요.'); return; }
+    let result;
+    try {
+      result = await postJson({ type: 'reset', pin });
+    } catch (error) {
+      fail('인터넷 연결을 확인하고 다시 눌러 주세요.'); return;
+    }
+    if (!result.ok) {
+      const code = result.error && result.error.code;
+      if (code === 'INVALID_PIN') fail('번호가 맞지 않아요.');
+      else if (code === 'INVALID_REQUEST') fail('Apps Script를 새 버전으로 배포해야 초기화할 수 있어요.');
+      else fail('초기화하지 못했어요. 잠시 후 다시 눌러 주세요.');
+      return;
+    }
+    clearLocalRecords(result.reset_at);
+    setSyncNote();
+    render();
+    showToast('모든 기록을 지웠어요. 다른 크롬북은 앱을 새로고침하면 지워져요.');
+  }
   async function sha256(text) {
     const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
     return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -690,7 +716,12 @@
       </section>
       <section class="card"><h3>학생들이 고른 집중 전략</h3>
         <div class="bars">${counts.map((c) => `<div style="--c:${c.st.color}"><span>${c.st.name}</span><i style="width:${(c.n / max) * 100}%"></i><span class="num">${c.n}</span></div>`).join('')}</div>
-        <div class="row"><button type="button" class="ghost" data-action="refresh">시트에서 다시 불러오기</button><button type="button" class="ghost" data-action="copy-csv">표를 CSV로 복사</button><button type="button" class="ghost" data-action="lock-teacher">🔒 잠그기</button></div></section>
+        <div class="row"><button type="button" class="ghost" data-action="refresh">시트에서 다시 불러오기</button><button type="button" class="ghost" data-action="copy-csv">표를 CSV로 복사</button><button type="button" class="ghost" data-action="lock-teacher">🔒 잠그기</button><button type="button" class="ghost danger" data-action="reset-open">전체 초기화…</button></div>
+        <form class="reset-box" id="reset-form" autocomplete="off" hidden>
+          <p><b>모든 기록을 지워요.</b> 시트의 측정 기록(Records)과 성장판(Growth)을 비우고, 각 크롬북은 다음에 앱을 열 때 자기 기록을 지워요. 지운 시트 내용은 '백업' 탭으로 복사해 둬요. 학생 명단은 그대로예요.</p>
+          <div class="row"><input id="reset-pin" type="password" inputmode="numeric" maxlength="12" aria-label="선생님 번호" placeholder="선생님 번호"><button type="submit" class="primary danger">정말 지우기</button><button type="button" class="ghost" data-action="reset-close">취소</button></div>
+          <p class="pin-error" id="reset-error" hidden></p>
+        </form></section>
       <section class="tablebox"><table><thead><tr><th>번호</th><th>이름</th><th>조</th><th>기준</th><th>최고(재측정)</th><th>변화</th><th>집중 전략</th><th>목표</th><th>상태</th><th>자신감 전→후</th><th>자기효능감 정의 (전 / 후)</th><th>성찰</th></tr></thead><tbody>
       ${rows.map(({ s, r }) => {
         const base = r ? baseOf(r) : null, best = r ? bestReOf(r) : null, strat = r ? stratOf(r.focus) : null;
@@ -835,6 +866,8 @@
       case 'refresh':
         syncFromSheets().then((ok) => { setSyncNote(); render(); showToast(ok ? '시트 기록을 다시 불러왔어요.' : '시트에서 불러오지 못했어요.'); });
         break;
+      case 'reset-open': $('reset-form').hidden = false; $('reset-pin').focus(); break;
+      case 'reset-close': $('reset-form').hidden = true; break;
       case 'lock-teacher':
         teacherUnlocked = false;
         try { sessionStorage.removeItem(TEACHER_UNLOCK_KEY); } catch (error) { /* 무시 */ }
@@ -846,6 +879,7 @@
     }
   });
   document.addEventListener('submit', async (event) => {
+    if (event.target.id === 'reset-form') { event.preventDefault(); resetAll(); return; }
     if (event.target.id !== 'pin-form') return;
     event.preventDefault();
     const pin = $('pin-input').value.trim();
@@ -883,10 +917,25 @@
   });
 
   // ---- 시작 ----
+  // 이 크롬북의 기록을 모두 지웁니다 (반·조 선택은 남겨 둡니다).
+  function clearLocalRecords(resetAt) {
+    [STORAGE_KEY, OUTBOX_KEY, PARTNER_STORAGE_KEY, RECORDS_STORAGE_KEY].forEach((k) => {
+      try { localStorage.removeItem(k); } catch (error) { /* 무시 */ }
+    });
+    runs = {};
+    outbox = { records: [], growth: [] };
+    try { localStorage.setItem(RESET_MARK_KEY, resetAt); } catch (error) { /* 무시 */ }
+  }
+  function applyReset(resetAt) {
+    let mark = '';
+    try { mark = localStorage.getItem(RESET_MARK_KEY) || ''; } catch (error) { /* 무시 */ }
+    if (resetAt && resetAt !== mark) clearLocalRecords(resetAt);
+  }
   async function loadStudents() {
     const response = await fetch(`${SHEETS_ENDPOINT}?action=students`);
     const result = await response.json();
     if (!result.ok) throw new Error('학생 명단을 불러오지 못했습니다.');
+    applyReset(result.reset_at);
     return result.data.map((row) => ({
       student_id: String(row.student_id), grade: Number(row.grade), class: Number(row.class),
       number: Number(row.number), name: String(row.name), group_or_team: String(row.group_or_team)
