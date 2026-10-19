@@ -600,7 +600,8 @@
       const value = r.goal != null ? f2(r.goal) : (base != null ? f2(Math.max(0, base - 0.2)) : '');
       return `<div class="panel"><h3>3단계 · 전략 하나 고르고 목표 정하기</h3>
         <p class="lead">세 가지를 한꺼번에 고치기는 어려워요. 하나만 골라 집중해요.</p>
-        <div class="pick">${STRATS.map((s) => `<button type="button" style="--c:${s.color}" data-focus="${s.key}" aria-pressed="${r.focus === s.key}"><b>${s.name}${s.key === rec ? ' · 추천' : ''}</b><span>짝 관찰 ${scoreOf(r, s.key)}/3</span></button>`).join('')}</div>
+        <div class="pick">${STRATS.map((s) => `<button type="button" style="--c:${s.color}" data-focus="${s.key}" aria-pressed="${r.focus === s.key}"><b>${s.name}${s.key === rec ? ' · 추천' : ''}</b><span>짝 관찰 ${scoreOf(r, s.key)}/3</span>
+          <ul class="pick-checks">${s.checks.map((c, j) => `<li class="${r.checks[s.key][j] ? 'ok' : 'todo'}"><i aria-hidden="true">${r.checks[s.key][j] ? '✓' : '!'}</i><span>${esc(c)}${r.checks[s.key][j] ? '' : ' <em>고칠 점</em>'}</span></li>`).join('')}</ul></button>`).join('')}</div>
         <div class="row goal"><label for="goal-input"><b>목표 기록</b></label><input id="goal-input" inputmode="decimal" value="${value}"><span>초</span><button type="button" class="primary" data-action="save-goal">목표 저장</button></div>
         <p class="lead">${base != null ? `기준 ${f2(base)}초에서 0.2초 줄인 값을 먼저 넣어 두었어요.` : '1단계 기준 기록을 먼저 재면 목표를 추천해 드려요.'}</p>
         ${strat && r.goal != null ? `<div class="sentence">나는 오늘 <span style="color:${strat.color}">${strat.name}</span>을(를) 고쳐서 <span class="num">${f2(r.goal)}</span>초에 도전한다.</div>
