@@ -164,6 +164,15 @@
   .pick button b { color: var(--c); font-size: 17px; }
   .pick button span { color: var(--muted); font-weight: 500; font-size: 14px; }
   .pick button[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, #fff); }
+  .pick-checks { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+  .pick-checks li { display: grid; grid-template-columns: 20px 1fr; gap: 6px; font-size: 14px; line-height: 1.4; color: var(--muted); font-weight: 500; }
+  .pick-checks li i { font-style: normal; font-weight: 900; text-align: center; border-radius: 50%; width: 20px; height: 20px; line-height: 20px; font-size: 12px; }
+  .pick-checks li.ok i { background: var(--mint-500, #2fd4a7); color: #fff; }
+  .pick-checks li span { color: inherit; font-size: 14px; font-weight: inherit; }
+  .pick-checks li.todo { color: var(--ink, #10213e); font-weight: 700; }
+  .pick button { align-content: start; }
+  .pick-checks li.todo i { background: #ffe1c7; color: #b45309; }
+  .pick-checks em { font-style: normal; font-size: 12px; color: #b45309; background: #fff3e6; border-radius: 6px; padding: 1px 6px; margin-left: 4px; white-space: nowrap; }
   .goal input { width: 120px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 20px; font-weight: 800; }
   .sentence { font-size: 21px; font-weight: 800; background: var(--gold-100); padding: 14px 16px; border-radius: 12px; }
   .partner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
