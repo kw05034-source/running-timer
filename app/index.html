@@ -473,7 +473,7 @@
            src="./TECHNICAL-6-seconds-16-9-480p-final.mp4"
            preload="auto" muted playsinline disablepictureinpicture></video>
     <video class="hero__video hero__video--ok" id="okClip"
-           src="./hero-page.mp4"
+           src="./CUT03-B-A-SMALL-KINDNESS-6-seconds-1.mp4"
            preload="auto" muted playsinline disablepictureinpicture></video>
     <div class="hero__scrim"></div>
 
@@ -791,8 +791,6 @@
   const okTime = document.getElementById('okTime');
   const okLeft = document.getElementById('okLeft');
   const okRetry = document.getElementById('okRetry');
-  // 성공 영상: 인트로 영상의 뒷부분(정류장의 301번 버스로 달려가는 장면)을 재생하고 마지막 장면에서 멈춥니다.
-  const OK_FROM_SEC = 6;
 
   /* ================= VIDEO : play once, then reveal ================= */
   const ICON_PLAY  = '<path d="M2 1l8 5-8 5z"/>';
@@ -899,7 +897,7 @@
     okTime.textContent = (base / 1000).toFixed(2);
     okLeft.textContent = ((TARGET_MS - base) / 1000).toFixed(2);
     warmupPage.classList.add('is-success');
-    try { okClip.currentTime = OK_FROM_SEC; } catch (e) {}
+    okClip.currentTime = 0;
     const p = okClip.play();
     if (p && p.catch) p.catch(() => {});
     sync();
