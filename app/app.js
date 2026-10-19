@@ -18,6 +18,9 @@
   function currentMode() { return MODES[state.mode]; }
 
   const STORAGE_KEY = 'movement-records-obstacle-run-v1';
+  // 전체 초기화(성장판 선생님 화면): 시트의 마지막 초기화 시각이 바뀌면 이 기기의 기록을 지웁니다.
+  const RESET_MARK_KEY = 'movement-records-reset-at-v1';
+  const RESET_CLEAR_KEYS = [STORAGE_KEY, 'movement-records-growth-v1', 'movement-records-growth-outbox-v1', 'movement-records-partner-v1'];
   const CLASS_STORAGE_KEY = 'movement-records-selected-class-v1';
   const GROUP_STORAGE_KEY = 'movement-records-selected-group-v1';
 
@@ -552,12 +555,24 @@
     }
   }
 
+  function applyReset(resetAt) {
+    let mark = '';
+    try { mark = localStorage.getItem(RESET_MARK_KEY) || ''; } catch (error) { /* 무시 */ }
+    if (!resetAt || resetAt === mark) return;
+    RESET_CLEAR_KEYS.forEach((key) => {
+      try { localStorage.removeItem(key); } catch (error) { /* 무시 */ }
+    });
+    records = [];
+    try { localStorage.setItem(RESET_MARK_KEY, resetAt); } catch (error) { /* 무시 */ }
+  }
+
   async function loadStudents() {
     const response = await fetch(`${SHEETS_ENDPOINT}?action=students`);
     const result = await response.json();
     if (!result.ok) {
       throw new Error(result.error && result.error.message ? result.error.message : '학생 명단을 불러오지 못했습니다.');
     }
+    applyReset(result.reset_at);
     return result.data.map((row) => ({
       student_id: String(row.student_id),
       grade: Number(row.grade),

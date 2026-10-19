@@ -58,6 +58,11 @@ var GROWTH_HEADERS = [
 var GROWTH_FOCUS_VALUES = ['', 'start', 'turn', 'finish'];
 
 var AVAILABLE_ACTIONS = ['students', 'records', 'growth', 'health'];
+
+// 전체 초기화: 선생님 화면의 번호(성장판과 같은 번호)를 SHA-256으로 비교합니다.
+var RESET_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
+// 마지막 초기화 시각. 각 크롬북은 학생 명단을 불러올 때 이 값을 보고 자기 기록을 지웁니다.
+var RESET_AT_PROPERTY = 'RESET_AT';
 var RECORD_ID_PROPERTY_PREFIX = 'record_id_hash:';
 
 /**
@@ -83,7 +88,8 @@ function doGet(e) {
           getSpreadsheet_(),
           STUDENTS_SHEET_NAME,
           STUDENTS_HEADERS
-        )
+        ),
+        reset_at: PropertiesService.getScriptProperties().getProperty(RESET_AT_PROPERTY) || ''
       });
     }
 
@@ -137,6 +143,9 @@ function doPost(e) {
     var request = parseJsonRequest_(e);
     if (request && typeof request === 'object' && request.type === 'growth') {
       return saveGrowth_(request);
+    }
+    if (request && typeof request === 'object' && request.type === 'reset') {
+      return resetAll_(request);
     }
     validateRequestShape_(request);
     var inputRecord = normalizeRecordInput_(request.record);
@@ -628,6 +637,63 @@ function upgradeGrowthHeaders_(sheet) {
   var missing = GROWTH_HEADERS.slice(lastColumn);
   sheet.getRange(1, lastColumn + 1, 1, missing.length).setValues([missing]);
   sheet.getRange(1, lastColumn + 1, sheet.getMaxRows(), missing.length).setNumberFormat('@');
+}
+
+/**
+ * 전체 초기화: Records·Growth 시트의 기록을 백업 탭으로 복사한 뒤 비웁니다 (1행 제목은 남김).
+ * Students 시트는 건드리지 않습니다.
+ */
+function resetAll_(request) {
+  var pin = request && typeof request.pin === 'string' ? request.pin : '';
+  if (!pin || sha256Hex_(pin) !== RESET_PIN_SHA256) {
+    throwAppError_('INVALID_PIN', '선생님 번호가 맞지 않습니다.', 403);
+  }
+
+  var spreadsheet = getSpreadsheet_();
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throwAppError_(
+      'LOCK_TIMEOUT',
+      '동시 저장이 많아 잠금을 획득하지 못했습니다. 잠시 후 다시 시도하세요.',
+      503
+    );
+  }
+
+  try {
+    var now = new Date();
+    var stamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMdd HHmmss');
+    var cleared = {};
+    [RECORDS_SHEET_NAME, GROWTH_SHEET_NAME].forEach(function (name) {
+      var sheet = spreadsheet.getSheetByName(name);
+      var lastRow = sheet ? sheet.getLastRow() : 0;
+      cleared[name] = Math.max(0, lastRow - 1);
+      if (lastRow <= 1) {
+        return;
+      }
+      sheet.copyTo(spreadsheet).setName('백업 ' + name + ' ' + stamp);
+      sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+    });
+
+    var resetAt = now.toISOString();
+    PropertiesService.getScriptProperties().setProperty(RESET_AT_PROPERTY, resetAt);
+
+    return jsonResponse_({
+      ok: true,
+      reset_at: resetAt,
+      cleared: cleared
+    });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function sha256Hex_(text) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8)
+    .map(function (b) {
+      var v = (b < 0 ? b + 256 : b).toString(16);
+      return v.length === 1 ? '0' + v : v;
+    })
+    .join('');
 }
 
 function saveGrowth_(request) {
