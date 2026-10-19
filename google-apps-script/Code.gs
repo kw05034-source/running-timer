@@ -53,7 +53,10 @@ var GROWTH_HEADERS = [
   'efficacy_before',
   'confidence_before',
   'efficacy_after',
-  'confidence_after'
+  'confidence_after',
+  // 짝 관찰: 이 학생이 관찰한 짝의 student_id와, 짝에게 준 체크(출발;회전;팔치기 각 3칸)
+  'observed_for',
+  'peer_checks'
 ];
 var GROWTH_FOCUS_VALUES = ['', 'start', 'turn', 'finish'];
 
@@ -773,7 +776,9 @@ function saveGrowth_(request) {
       input.efficacy_before,
       input.confidence_before,
       input.efficacy_after,
-      input.confidence_after
+      input.confidence_after,
+      input.observed_for,
+      input.peer_checks
     ];
 
     if (targetRow) {
@@ -839,8 +844,25 @@ function normalizeGrowthInput_(growth) {
     efficacy_before: normalizeOptionalText_(growth.efficacy_before, 300),
     confidence_before: normalizeConfidence_(growth.confidence_before, 'confidence_before'),
     efficacy_after: normalizeOptionalText_(growth.efficacy_after, 300),
-    confidence_after: normalizeConfidence_(growth.confidence_after, 'confidence_after')
+    confidence_after: normalizeConfidence_(growth.confidence_after, 'confidence_after'),
+    observed_for: normalizeOptionalText_(growth.observed_for, 64),
+    peer_checks: normalizePeerChecks_(growth.peer_checks)
   };
+}
+
+/** 짝에게 준 체크: 비어 있거나 "1,0,1;0,0,1;1,1,1" (출발;반환점 회전;팔치기) */
+function normalizePeerChecks_(value) {
+  var text = value === undefined || value === null ? '' : String(value).trim();
+  if (!text) {
+    return '';
+  }
+  var groups = text.split(';');
+  if (groups.length !== 3) {
+    throwAppError_('INVALID_GROWTH', 'peer_checks는 체크 3묶음이어야 합니다.', 400);
+  }
+  return groups.map(function (group) {
+    return normalizeCheckList_(group, 'peer_checks');
+  }).join(';');
 }
 
 /** 자신감 점수: 비어 있거나 1~5 정수 */

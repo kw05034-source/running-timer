@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>오늘의 소감 담벼락</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#F4F1EA;--ink:#1d1d1f;--sub:#5b5b60;--line:#d9d4c7}
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:'Noto Sans KR',sans-serif;word-break:keep-all;min-height:100vh}
+  header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 28px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+  h1{font-size:28px;font-weight:900}
+  .q{font-size:16px;color:var(--sub);flex:1;min-width:240px}
+  .count{font-weight:700;font-size:18px}
+  button,select{font:inherit;font-size:14px;padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer}
+  button.on{background:#1d1d1f;color:#fff;border-color:#1d1d1f}
+  .wall{column-width:300px;column-gap:18px;padding:24px 28px 60px}
+  .card{break-inside:avoid;margin:0 0 18px;border-radius:14px;padding:18px 20px;box-shadow:0 2px 0 rgba(0,0,0,.08);animation:pop .4s ease}
+  @keyframes pop{from{transform:scale(.92);opacity:0}to{transform:none;opacity:1}}
+  .who{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .name{font-weight:900;font-size:19px}
+  .team{font-size:13px;color:var(--sub)}
+  .lab{font-size:12px;font-weight:700;color:var(--sub);margin-top:10px}
+  .txt{font-size:18px;line-height:1.5;margin-top:2px;white-space:pre-wrap}
+  .conf{margin-top:12px;font-size:14px;font-weight:700}
+  .effs{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:stretch;margin-top:4px}
+  .eff{background:rgba(255,255,255,.55);border-radius:10px;padding:8px 10px}
+  .eff .lab{margin-top:0}
+  .eff.before .txt{font-size:15px;color:var(--sub)}
+  .eff.after .txt{font-weight:700}
+  .effs .arrow{align-self:center;font-weight:900;color:var(--sub)}
+  .none{color:#9a968c;font-weight:500;font-size:14px}
+  body.big .eff.before .txt{font-size:19px}
+  .conf b{font-size:16px}
+  .empty{padding:80px 28px;text-align:center;color:var(--sub);font-size:18px}
+  .err{color:#b3261e;font-size:14px;padding:0 28px}
+  body.big .txt{font-size:24px} body.big .name{font-size:24px} body.big .wall{column-width:380px}
+  @media (max-width:600px){header{padding:14px 16px}.wall{padding:16px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>오늘의 소감 담벼락</h1>
+  <p class="q">기록을 줄이려 반복해서 도전하는 경험은 나의 자기효능감에 어떤 영향을 줄까?</p>
+  <span class="count" id="count"></span>
+  <select id="cls"><option value="">모든 반</option></select>
+  <select id="team"><option value="">모든 모둠</option></select>
+  <button id="anon">이름 가리기</button>
+  <button id="big">글씨 크게</button>
+  <button id="full">전체 화면</button>
+</header>
+<p class="err" id="err"></p>
+<main id="main"></main>
+
+<script>
+// 성장판(growth.js)과 같은 Apps Script 웹 앱 주소. ?demo=1 을 붙이면 예시 카드로 미리보기.
+const COLORS=['#FFE8A3','#CDEBFF','#D7F5D0','#FFD6E0','#E6DCFF','#FFE1C7'];
+const params=new URLSearchParams(location.search);
+const api='https://script.google.com/macros/s/AKfycbw5mlmLxwSTXB7q7lsbqlGjWfkU9aTUwmwFSKeiK_Y9OyDX-eqx51AAkayE6qtAkCQS/exec';
+const demo=params.has('demo');
+let anon=false, rows=[], seen=new Set();
+
+const DEMO=[
+ {name:'예시1',class:'1',group_or_team:'1모둠',efficacy_before:'잘하는 거',efficacy_after:'처음엔 못 할 것 같았는데, 반환할 때 발을 바꾸니까 기록이 줄어서 나도 할 수 있다는 마음이 생겼다.',reflection_good:'세 번 모두 끝까지 달렸다.',reflection_next:'출발할 때 더 낮게 숙이기',confidence_before:'2',confidence_after:'4'},
+ {name:'예시2',class:'2',group_or_team:'2모둠',efficacy_after:'기록은 그대로였지만 계속 다시 도전한 내가 자랑스럽다.',reflection_good:'포기하지 않았다.',reflection_next:'팔을 더 크게 흔들기',confidence_before:'3',confidence_after:'4'},
+ {name:'예시3',class:'1',group_or_team:'1모둠',efficacy_after:'친구들이 응원해 줘서 더 힘이 났다. 응원도 자기효능감에 도움이 되는 것 같다.',reflection_good:'계주에서 바통을 잘 넘겼다.',reflection_next:'',confidence_before:'3',confidence_after:'5'},
+ {name:'예시4',class:'2',group_or_team:'3모둠',efficacy_before:'자신감',efficacy_after:'0.4초 줄었다! 연습하면 오래달리기도 더 잘할 수 있을 것 같다.',reflection_good:'반환선을 정확히 밟았다.',reflection_next:'마지막 5m에서 속도 유지하기',confidence_before:'3',confidence_after:'5'},
+ {name:'예시5',class:'1',group_or_team:'2모둠',efficacy_after:'자기효능감은 해 보면 된다는 믿음이다.',reflection_good:'',reflection_next:'다음엔 목표 기록을 세우고 달리기',confidence_before:'2',confidence_after:'3'}
+];
+
+const $=id=>document.getElementById(id);
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function hasAfter(r){return [r.efficacy_after,r.reflection_good,r.reflection_next].some(v=>String(v||'').trim())}
+
+async function load(){
+  try{
+    if(demo){ rows=DEMO; }
+    else{
+      const res=await fetch(api+(api.includes('?')?'&':'?')+'action=growth',{cache:'no-store'});
+      const j=await res.json();
+      if(!j.ok) throw new Error(j.message||'불러오기 실패');
+      rows=j.data||[];
+    }
+    $('err').textContent='';
+    render();
+  }catch(e){ $('err').textContent='소감을 불러오지 못했어요: '+e.message+' (주소와 웹앱 배포 상태를 확인해 주세요)'; }
+}
+
+// 수업 전·후 자기효능감 정의를 나란히 (둘 중 하나만 있으면 그것만)
+function effHtml(r){
+  const b=String(r.efficacy_before||'').trim(), a=String(r.efficacy_after||'').trim();
+  if(!b&&!a) return '';
+  const col=(lab,v,cls)=>`<div class="eff ${cls}"><p class="lab">${lab}</p><p class="txt">${v?esc(v):'<span class="none">안 썼어요</span>'}</p></div>`;
+  return `<p class="lab">자기효능감이란?</p><div class="effs">${col('수업 전',b,'before')}<span class="arrow" aria-hidden="true">→</span>${col('수업 후',a,'after')}</div>`;
+}
+
+function render(){
+  const clsSel=$('cls'), cls=clsSel.value;
+  const classes=[...new Set(rows.filter(hasAfter).map(r=>String(r.class||'')).filter(Boolean))].sort();
+  clsSel.innerHTML='<option value="">모든 반</option>'+classes.map(c=>`<option value="${esc(c)}"${c===cls?' selected':''}>${esc(c)}반</option>`).join('');
+  const teamSel=$('team'), cur=teamSel.value;
+  const teams=[...new Set(rows.filter(r=>!cls||String(r.class)===cls).map(r=>r.group_or_team).filter(Boolean))].sort();
+  teamSel.innerHTML='<option value="">모든 모둠</option>'+teams.map(t=>`<option${t===cur?' selected':''}>${esc(t)}</option>`).join('');
+  const list=rows.filter(hasAfter).filter(r=>!cls||String(r.class)===cls).filter(r=>!cur||r.group_or_team===cur);
+  $('count').textContent=`${list.length}명 참여`;
+  if(!list.length){ $('main').innerHTML='<p class="empty">아직 수업 후 소감이 없어요. 학생들이 웹앱에 쓰면 여기에 나타나요.</p>'; return; }
+  $('main').innerHTML='<div class="wall">'+list.map((r,i)=>{
+    const key=(r.student_id||r.name)+'|'+r.efficacy_after+r.reflection_good+r.reflection_next;
+    const fresh=!seen.has(key); seen.add(key);
+    const c=COLORS[i%COLORS.length];
+    const conf=(r.confidence_before||r.confidence_after)?`<p class="conf">자신감 <b>${esc(r.confidence_before||'-')}</b> → <b>${esc(r.confidence_after||'-')}</b>점</p>`:'';
+    const part=(lab,v)=>String(v||'').trim()?`<p class="lab">${lab}</p><p class="txt">${esc(v)}</p>`:'';
+    return `<article class="card" style="background:${c};${fresh?'':'animation:none'}">
+      <div class="who"><span class="name">${anon?'친구 '+(i+1):esc(r.name)}</span><span class="team">${esc(r.group_or_team)}</span></div>
+      ${effHtml(r)}${part('오늘 잘한 점',r.reflection_good)}${part('다음에 해 볼 것',r.reflection_next)}${conf}</article>`;
+  }).join('')+'</div>';
+}
+
+$('team').onchange=render;
+$('cls').onchange=()=>{$('team').value='';render();};
+$('anon').onclick=e=>{anon=!anon;e.target.classList.toggle('on',anon);render();};
+$('big').onclick=e=>{document.body.classList.toggle('big');e.target.classList.toggle('on');};
+$('full').onclick=()=>{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()};
+
+load(); if(!demo) setInterval(load,10000);
+</script>
+</body>
+</html>

@@ -18,6 +18,7 @@
   const RECORDS_STORAGE_KEY = 'movement-records-obstacle-run-v1'; // 측정 앱(app.js)의 기록
   const OUTBOX_KEY = 'movement-records-growth-outbox-v1'; // 와이파이가 끊겨 못 보낸 전송 목록
   const RETRY_MS = 20000;
+  const PEER_POLL_MS = 15000;
   const TEACHER_UNLOCK_KEY = 'growth-teacher-unlocked';
   // 교사 화면 잠금 번호의 SHA-256 값입니다. 번호를 바꾸려면 새 번호의 SHA-256 값으로 바꿔 주세요.
   const TEACHER_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
@@ -111,13 +112,17 @@
     try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox)); } catch (error) { console.warn('보낼 목록을 저장하지 못했습니다.', error); }
   }
   const EFFICACY_KEYS = ['efficacy_before', 'confidence_before', 'efficacy_after', 'confidence_after'];
-  // 자기효능감 칸이 없는 예전 Apps Script 배포에도 나머지 성장판은 저장되도록, 거절되면 그 칸만 빼고 다시 보냅니다.
+  const PEER_KEYS = ['observed_for', 'peer_checks'];
+  // 새 칸(짝 관찰, 자기효능감)이 없는 예전 Apps Script 배포에도 나머지 성장판은 저장되도록, 거절되면 새 칸부터 하나씩 빼고 다시 보냅니다.
   async function postGrowth(run) {
     const row = toRow(run);
-    const result = await postJson({ type: 'growth', growth: row });
-    if (result.ok || !result.error || result.error.code !== 'INVALID_GROWTH_FIELDS') return result;
-    EFFICACY_KEYS.forEach((k) => delete row[k]);
-    return postJson({ type: 'growth', growth: row });
+    let result = await postJson({ type: 'growth', growth: row });
+    for (const keys of [PEER_KEYS, EFFICACY_KEYS]) {
+      if (result.ok || !result.error || result.error.code !== 'INVALID_GROWTH_FIELDS') return result;
+      keys.forEach((k) => delete row[k]);
+      result = await postJson({ type: 'growth', growth: row });
+    }
+    return result;
   }
   const pendingCount = () => outbox.records.length + outbox.growth.length;
   async function postJson(body) {
@@ -166,9 +171,14 @@
     return sent;
   }
 
+  const blankChecks = () => ({ start: [0, 0, 0], turn: [0, 0, 0], finish: [0, 0, 0] });
   function blankRun(studentId) {
-    return { student_id: studentId, attempts: [], checks: { start: [0, 0, 0], turn: [0, 0, 0], finish: [0, 0, 0] },
-      observed: false, focus: '', goal: null, refl1: '', refl2: '', ...blankEfficacy(), updated_at: '' };
+    return { student_id: studentId, attempts: [], checks: blankChecks(),
+      observed: false, focus: '', goal: null, refl1: '', refl2: '', ...blankEfficacy(), gave: blankGave(), updated_at: '' };
+  }
+  // 짝 관찰: 내가 짝을 보고 체크한 내용. 보내면 짝의 화면 '짝이 나를 관찰한 결과'에 채워져요.
+  function blankGave() {
+    return { for: '', checks: blankChecks(), sent: false };
   }
   // 자기효능감 수업 전·후: 내 말로 쓴 정의와 자신감(1~5점)
   function blankEfficacy() {
@@ -178,6 +188,7 @@
     if (!runs[studentId]) runs[studentId] = blankRun(studentId);
     const r = runs[studentId];
     if (!('effBefore' in r)) Object.assign(r, blankEfficacy()); // 예전에 저장된 성장판
+    if (!r.gave) r.gave = blankGave();
     return r;
   }
   function touch(studentId) {
@@ -203,7 +214,9 @@
       efficacy_before: run.effBefore || '',
       confidence_before: run.confBefore ?? '',
       efficacy_after: run.effAfter || '',
-      confidence_after: run.confAfter ?? ''
+      confidence_after: run.confAfter ?? '',
+      observed_for: run.gave && run.gave.sent ? run.gave.for : '',
+      peer_checks: run.gave && run.gave.sent ? ['start', 'turn', 'finish'].map((k) => run.gave.checks[k].join(',')).join(';') : ''
     };
   }
   function confOf(v) {
@@ -213,6 +226,8 @@
   function fromRow(row) {
     const nums = (text) => String(text ?? '').split(',').map((v) => v.trim()).filter(Boolean).map(Number).filter(Number.isFinite);
     const checks = (text) => { const v = nums(text).map((x) => (x ? 1 : 0)); return [v[0] || 0, v[1] || 0, v[2] || 0]; };
+    const peer = String(row.peer_checks ?? '').split(';');
+    const gaveFor = String(row.observed_for ?? '').trim();
     return {
       student_id: String(row.student_id),
       attempts: nums(row.attempts).map((sec) => ({ sec, at: '' })),
@@ -226,6 +241,9 @@
       confBefore: confOf(row.confidence_before),
       effAfter: String(row.efficacy_after ?? ''),
       confAfter: confOf(row.confidence_after),
+      gave: gaveFor && peer.length === 3
+        ? { for: gaveFor, checks: { start: checks(peer[0]), turn: checks(peer[1]), finish: checks(peer[2]) }, sent: true }
+        : blankGave(),
       updated_at: String(row.updated_at ?? '')
     };
   }
@@ -391,6 +409,46 @@
         <option value="">번호순 자동 짝</option>${options}</select></label></div>`;
   }
 
+  // 내가 관찰할 짝 (3인 1조면 고를 수 있어요)
+  function partnersOf(id) {
+    const chosen = chosenPartnerOf(id);
+    return chosen ? [chosen] : autoPartnersOf(id);
+  }
+  function giveTarget(r) {
+    const ps = partnersOf(r.student_id);
+    return ps.find((s) => s.student_id === r.gave.for) || ps[0] || null;
+  }
+  // 나를 관찰해 보낸 짝 가운데 가장 최근 것
+  function receivedFor(id) {
+    let best = null;
+    Object.values(runs).forEach((x) => {
+      if (!x || x.student_id === id || !x.gave || !x.gave.sent || x.gave.for !== id) return;
+      if (!best || String(x.updated_at) > String(best.updated_at)) best = x;
+    });
+    return best;
+  }
+  // 짝이 보낸 체크를 내 체크 카드에 채워요. 짝이 체크를 고쳐 다시 보내면 새 내용으로 바뀌어요.
+  function applyReceived(id) {
+    const from = receivedFor(id);
+    if (!from) return false;
+    const r = runOf(id);
+    const sig = `${from.student_id}|${['start', 'turn', 'finish'].map((k) => from.gave.checks[k].join('')).join('')}`;
+    if (r.peerSig === sig) return false;
+    r.checks = JSON.parse(JSON.stringify(from.gave.checks));
+    r.peerSig = sig;
+    r.peerFrom = from.student_id;
+    touch(id);
+    return true;
+  }
+  function stratsHtml(checks, attr, weak) {
+    const score = (k) => checks[k].reduce((sum, v) => sum + (v ? 1 : 0), 0);
+    return `<div class="strats">${STRATS.map((s) => `<div class="strat${s.key === weak ? ' weak' : ''}" style="--c:${s.color}">
+      <header><h4>${s.name}</h4><span class="score">${score(s.key)}/3</span></header>
+      ${s.checks.map((c, j) => `<label class="chk"><input type="checkbox" id="${attr}-${s.key}-${j}" data-${attr}="${s.key}:${j}" ${checks[s.key][j] ? 'checked' : ''}><span>${esc(c)}</span></label>`).join('')}
+      ${s.key === weak ? '<span class="tag">가장 약한 전략</span>' : ''}</div>`).join('')}</div>`;
+  }
+  const nameOf = (s) => (s ? `${s.number}번 ${s.name}` : '');
+
   // ---- 학생 화면 ----
   function renderRoster() {
     const list = students.filter((s) => Number(s.class) === state.classNo && s.group_or_team === state.group);
@@ -510,13 +568,28 @@
     }
     if (i === 2) {
       const weak = weakest(r);
+      const ps = partnersOf(r.student_id);
+      const target = giveTarget(r);
+      const from = receivedFor(r.student_id);
+      const fromStudent = from ? getStudent(from.student_id) : null;
+      const pick = ps.length > 1 ? `<div class="row give-pick"><span class="lead">누구를 관찰할까요?</span>${ps.map((s) => `<button type="button" class="ghost" data-give-for="${esc(s.student_id)}" aria-pressed="${target && target.student_id === s.student_id}">${esc(nameOf(s))}</button>`).join('')}</div>` : '';
+      const give = target ? `${pick}
+        <p class="lead"><b>${esc(nameOf(target))}</b>이(가) 뛰는 모습을 보고 잘 된 포인트에 체크해요. 반환점 회전은 휴대폰 슬로모션으로 찍어 함께 보면 정확해요.</p>
+        ${stratsHtml(r.gave.for === target.student_id ? r.gave.checks : blankChecks(), 'give', '')}
+        <div class="row"><button type="button" class="primary" data-action="give-send" data-for="${esc(target.student_id)}">${r.gave.sent && r.gave.for === target.student_id ? '다시 보내기' : '짝에게 보내기'}</button>
+        ${r.gave.sent && r.gave.for === target.student_id ? `<span class="lead">✓ ${esc(target.name)}의 화면으로 보냈어요. 체크를 고치면 고친 내용도 자동으로 전달돼요.</span>` : ''}</div>`
+        : '<p class="lead">짝이 아직 없어요. 위에서 짝을 골라 주세요.</p>';
+      const got = from
+        ? `<p class="lead"><b>${esc(nameOf(fromStudent) || '짝')}</b>이(가) 나를 보고 체크해 보냈어요. 아래 카드에 채워 두었어요.</p>`
+        : `<div class="fb"><b>아직 짝이 체크를 보내지 않았어요.</b><span>짝이 보내면 여기에 자동으로 채워져요. 짝에게 태블릿이 없으면 짝이 이 화면에서 직접 체크해도 돼요.</span>
+          <div class="row"><button type="button" class="ghost" data-action="peer-refresh">새로 고침</button></div></div>`;
       return `<div class="panel"><h3>2단계 · 짝 관찰 체크 카드</h3>
-        <p class="lead">짝이 뛰는 모습을 보고 잘 된 포인트에 체크해요. 반환점 회전은 휴대폰 슬로모션으로 찍어 함께 보면 정확해요.</p>
         ${partnerHtml(state.studentId)}
-        <div class="strats">${STRATS.map((s) => `<div class="strat${r.observed && s.key === weak ? ' weak' : ''}" style="--c:${s.color}">
-          <header><h4>${s.name}</h4><span class="score">${scoreOf(r, s.key)}/3</span></header>
-          ${s.checks.map((c, j) => `<label class="chk"><input type="checkbox" id="chk-${s.key}-${j}" data-check="${s.key}:${j}" ${r.checks[s.key][j] ? 'checked' : ''}><span>${esc(c)}</span></label>`).join('')}
-          ${r.observed && s.key === weak ? '<span class="tag">가장 약한 전략</span>' : ''}</div>`).join('')}</div>
+        <h4 class="sub">① 내가 짝을 관찰해요</h4>
+        ${give}
+        <h4 class="sub">② 짝이 나를 관찰한 결과</h4>
+        ${got}
+        ${stratsHtml(r.checks, 'check', r.observed ? weak : '')}
         <div class="row"><button type="button" class="primary" data-action="observed">관찰 끝, 약한 전략 찾기</button>
         ${r.observed ? `<span class="lead">체크가 가장 적은 <b>${stratOf(weak).name}</b>부터 고쳐 보길 추천해요.</span><button type="button" class="ghost" data-goto="3">3단계로 →</button>` : ''}</div></div>`;
     }
@@ -564,6 +637,7 @@
       return;
     }
     const r = runOf(student.student_id);
+    if (state.step === 2) applyReceived(student.student_id);
     const badge = `🏆 ${RECORD_MIN_SEC}초 이상 기록은 랭킹에도 들어가요`;
     const doneCount = STEPS.filter((_, i) => stepDone(r, i)).length;
     card.innerHTML = `<div class="who"><div class="who-main"><h2>${esc(student.name)}</h2><span class="meta">${esc(student.class)}반 · ${esc(student.group_or_team)} · ${esc(student.number)}번</span></div>
@@ -716,7 +790,7 @@
       </section>
       <section class="card"><h3>학생들이 고른 집중 전략</h3>
         <div class="bars">${counts.map((c) => `<div style="--c:${c.st.color}"><span>${c.st.name}</span><i style="width:${(c.n / max) * 100}%"></i><span class="num">${c.n}</span></div>`).join('')}</div>
-        <div class="row"><button type="button" class="ghost" data-action="refresh">시트에서 다시 불러오기</button><button type="button" class="ghost" data-action="copy-csv">표를 CSV로 복사</button><button type="button" class="ghost" data-action="lock-teacher">🔒 잠그기</button><button type="button" class="ghost danger" data-action="reset-open">전체 초기화…</button></div>
+        <div class="row"><button type="button" class="ghost" data-action="refresh">시트에서 다시 불러오기</button><button type="button" class="ghost" data-action="copy-csv">표를 CSV로 복사</button><a class="ghost btn-link" href="./wall.html" target="_blank" rel="noopener">소감 담벼락 열기 ↗</a><button type="button" class="ghost" data-action="lock-teacher">🔒 잠그기</button><button type="button" class="ghost danger" data-action="reset-open">전체 초기화…</button></div>
         <form class="reset-box" id="reset-form" autocomplete="off" hidden>
           <p><b>모든 기록을 지워요.</b> 시트의 측정 기록(Records)과 성장판(Growth)을 비우고, 각 크롬북은 다음에 앱을 열 때 자기 기록을 지워요. 지운 시트 내용은 '백업' 탭으로 복사해 둬요. 학생 명단은 그대로예요.</p>
           <div class="row"><input id="reset-pin" type="password" inputmode="numeric" maxlength="12" aria-label="선생님 번호" placeholder="선생님 번호"><button type="submit" class="primary danger">정말 지우기</button><button type="button" class="ghost" data-action="reset-close">취소</button></div>
@@ -817,6 +891,10 @@
       return;
     }
     if (b.dataset.focus && r) { r.focus = b.dataset.focus; touch(state.studentId); renderCard(); return; }
+    if (b.dataset.giveFor && r) {
+      if (r.gave.for !== b.dataset.giveFor) { r.gave = { for: b.dataset.giveFor, checks: blankChecks(), sent: false }; touch(state.studentId); }
+      renderCard(); return;
+    }
 
     switch (b.dataset.action) {
       case 'toggle-timer': if (running) stopTimer(); else startTimer(); break;
@@ -838,6 +916,18 @@
         r.observed = true;
         if (!r.focus) r.focus = weakest(r);
         touch(state.studentId); renderCard(); renderRoster(); break;
+      case 'give-send': {
+        const target = b.dataset.for;
+        if (!target) break;
+        if (r.gave.for !== target) r.gave = { for: target, checks: blankChecks(), sent: false };
+        r.gave.sent = true;
+        touch(state.studentId); renderCard();
+        showToast('짝의 화면으로 보냈어요.');
+        break;
+      }
+      case 'peer-refresh':
+        syncFromSheets().then((ok) => { renderCard(); if (!ok) showToast('시트에서 불러오지 못했어요.'); else if (!receivedFor(state.studentId)) showToast('아직 짝이 보내지 않았어요.'); });
+        break;
       case 'save-goal': {
         const v = Number.parseFloat(($('goal-input').value || '').replace(',', '.'));
         if (!(v > 0 && v <= 60)) { showToast('목표 기록을 초 단위 숫자로 입력해 주세요.'); break; }
@@ -897,6 +987,18 @@
     if (event.target.matches('[data-partner]') && state.studentId) {
       setChosenPartner(state.studentId, event.target.value);
       renderCard();
+      return;
+    }
+    const give = event.target.dataset && event.target.dataset.give;
+    if (give && state.studentId) {
+      const r = runOf(state.studentId);
+      const target = giveTarget(r);
+      if (!target) return;
+      if (r.gave.for !== target.student_id) r.gave = { for: target.student_id, checks: blankChecks(), sent: false };
+      const [k, j] = give.split(':');
+      r.gave.checks[k][Number(j)] = event.target.checked ? 1 : 0;
+      touch(state.studentId);
+      event.target.closest('.strat').querySelector('.score').textContent = `${r.gave.checks[k].reduce((a, v) => a + v, 0)}/3`;
       return;
     }
     const key = event.target.dataset && event.target.dataset.check;
@@ -988,5 +1090,14 @@
   window.addEventListener('online', retryOutbox);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') retryOutbox(); });
   window.setInterval(retryOutbox, RETRY_MS);
+  // 2단계(짝 관찰)를 보고 있으면 짝이 보낸 체크를 15초마다 확인해요.
+  window.setInterval(async () => {
+    if (state.mode !== 'student' || state.step !== 2 || !state.studentId || state.sheetSupported === false) return;
+    if (state.timer !== 'idle' || document.visibilityState !== 'visible') return;
+    const sig = () => { const x = receivedFor(state.studentId); return x ? JSON.stringify([x.student_id, x.gave.checks]) : ''; };
+    const before = sig();
+    if (!(await syncFromSheets())) return;
+    if (state.step === 2 && sig() !== before) renderCard();
+  }, PEER_POLL_MS);
   init();
 })();
