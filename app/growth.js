@@ -330,6 +330,39 @@
     $('group-tabs').innerHTML = groups.map((g) => `<button type="button" role="tab" data-group="${esc(g)}" class="${g === state.group ? 'is-selected' : ''}" aria-selected="${g === state.group}">${esc(g)}</button>`).join('');
   }
 
+  // ---- 짝 (번호순 남1·여1) ----
+  // 반마다 남학생·여학생을 각각 번호순으로 세워 k번째끼리 짝을 지어요.
+  // 남녀 수가 다르면 남는 학생끼리 번호순으로 둘씩 짝을 짓고, 한 명이 남으면 그 앞 짝에 붙여 3인 1조로 해요.
+  function inTwos(list) {
+    const pairs = [];
+    for (let k = 0; k < list.length; k += 2) pairs.push(list.slice(k, k + 2));
+    return pairs;
+  }
+  function partnersOf(id) {
+    const me = getStudent(id);
+    if (!me) return [];
+    const byNo = (a, b) => a.number - b.number;
+    const mates = students.filter((s) => Number(s.class) === Number(me.class));
+    const boys = mates.filter((s) => s.group_or_team.startsWith('남')).sort(byNo);
+    const girls = mates.filter((s) => s.group_or_team.startsWith('여')).sort(byNo);
+    let pairs;
+    if (boys.length && girls.length) {
+      const n = Math.min(boys.length, girls.length);
+      pairs = Array.from({ length: n }, (_, k) => [boys[k], girls[k]]).concat(inTwos([...boys.slice(n), ...girls.slice(n)]));
+    } else {
+      // 성별을 알 수 없으면 번호순으로 둘씩
+      pairs = inTwos([...mates].sort(byNo));
+    }
+    if (pairs.length > 1 && pairs[pairs.length - 1].length === 1) pairs[pairs.length - 2].push(pairs.pop()[0]);
+    const mine = pairs.find((p) => p.some((s) => s.student_id === id)) || [];
+    return mine.filter((s) => s.student_id !== id);
+  }
+  function partnerHtml(id) {
+    const ps = partnersOf(id);
+    if (!ps.length) return '';
+    return `<div class="sentence partner">내 짝: ${ps.map((s) => `<b>${esc(s.number)}번 ${esc(s.name)}</b>`).join(', ')}</div>`;
+  }
+
   // ---- 학생 화면 ----
   function renderRoster() {
     const list = students.filter((s) => Number(s.class) === state.classNo && s.group_or_team === state.group);
@@ -451,6 +484,7 @@
       const weak = weakest(r);
       return `<div class="panel"><h3>2단계 · 짝 관찰 체크 카드</h3>
         <p class="lead">짝이 뛰는 모습을 보고 잘 된 포인트에 체크해요. 반환점 회전은 휴대폰 슬로모션으로 찍어 함께 보면 정확해요.</p>
+        ${partnerHtml(state.studentId)}
         <div class="strats">${STRATS.map((s) => `<div class="strat${r.observed && s.key === weak ? ' weak' : ''}" style="--c:${s.color}">
           <header><h4>${s.name}</h4><span class="score">${scoreOf(r, s.key)}/3</span></header>
           ${s.checks.map((c, j) => `<label class="chk"><input type="checkbox" id="chk-${s.key}-${j}" data-check="${s.key}:${j}" ${r.checks[s.key][j] ? 'checked' : ''}><span>${esc(c)}</span></label>`).join('')}
