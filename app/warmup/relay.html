@@ -680,6 +680,14 @@
     if (e.code === 'Space' && e.target === sw) { e.preventDefault(); if (result) resetAll(); else running ? finish() : start(); }
   });
 
+  // Enter로 시작/정지 (측정 앱과 같은 방식). 버튼에 포커스가 있으면 그 버튼이 Enter를 처리하므로 건드리지 않습니다.
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.repeat) return;
+    if (e.target.closest && e.target.closest('button, a, input, textarea, select, [contenteditable]')) return;
+    e.preventDefault();
+    toggle.click();
+  });
+
   paint();
   sync();
 
