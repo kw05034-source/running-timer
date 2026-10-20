@@ -304,6 +304,7 @@
     if (state.timerStatus !== 'idle' || !state.selectedStudentId) return;
     state.timerStatus = 'running';
     state.startedAt = performance.now();
+    window.timerBeep?.('start');
     requestWakeLock();
     renderTimer();
     state.timerId = window.setInterval(() => {
@@ -317,6 +318,7 @@
     window.clearInterval(state.timerId);
     state.timerId = null;
     state.elapsedMs = Math.max(10, performance.now() - state.startedAt);
+    window.timerBeep?.('stop');
     const student = getStudent(state.selectedStudentId);
     const attemptNo = getStudentRecords(state.selectedStudentId).length + 1;
     if (state.elapsedMs / 1000 < currentMode().minSec) {
