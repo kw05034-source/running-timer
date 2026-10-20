@@ -760,6 +760,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </div>
 
+<script src="./beep.js"></script>
 <script>
 (() => {
   const warmupPage = document.getElementById('warmup-page');
@@ -926,6 +927,7 @@
     if (failed || succeeded) resetAll();
     mark = performance.now();
     running = true;
+    if (window.timerBeep) timerBeep('start');
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(paint);
     sync();
@@ -943,6 +945,7 @@
   // 정지 = 도착. 목표 시간 안이면 성공, 넘기면 paint()에서 이미 실패 처리됩니다.
   function finish(){
     if (!running) return;
+    if (window.timerBeep) timerBeep('stop');
     stop();
     if (!failed && base > 0 && base < TARGET_MS) succeed();
   }

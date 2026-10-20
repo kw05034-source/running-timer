@@ -474,6 +474,7 @@
   <div class="stat"><b>랩</b><strong id="sLaps">0<em>회</em></strong></div>
 </section>
 
+<script src="../beep.js"></script>
 <script>
 (() => {
   const hero   = document.getElementById('hero');
@@ -586,6 +587,8 @@
 
   // "정지" pressed: judge the run only now — within the target is a success, past it a fail
   function finish(){
+    if (!running) return;
+    if (window.timerBeep) timerBeep('stop');
     stop();
     showResult(base > TARGET_MS ? 'fail' : 'ok');
   }
@@ -628,6 +631,7 @@
     clearResult();
     mark = performance.now();
     running = true;
+    if (window.timerBeep) timerBeep('start');
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(paint);
     sync();

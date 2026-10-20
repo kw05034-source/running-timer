@@ -660,6 +660,7 @@
     if (state.timer !== 'idle' || !state.studentId) return;
     state.timer = 'running';
     state.startedAt = performance.now();
+    window.timerBeep?.('start');
     renderCard();
     document.querySelector('.watch')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     state.timerId = window.setInterval(paintDigits, 40);
@@ -669,6 +670,7 @@
     window.clearInterval(state.timerId);
     state.timerId = null;
     state.elapsedMs = performance.now() - state.startedAt;
+    window.timerBeep?.('stop');
     const sec = round2(state.elapsedMs / 1000);
     if (sec < MIN_SEC) {
       state.timer = 'idle';
