@@ -680,12 +680,16 @@
     if (e.code === 'Space' && e.target === sw) { e.preventDefault(); if (result) resetAll(); else running ? finish() : start(); }
   });
 
-  // Enter로 시작/정지 (측정 앱과 같은 방식). 버튼에 포커스가 있으면 그 버튼이 Enter를 처리하므로 건드리지 않습니다.
+  // Enter(부저)는 시작·정지만 합니다. 리셋·다시 도전 같은 버튼은 마우스나 터치로만 눌러요.
+  // 리셋을 마우스로 누른 뒤에도 그 버튼에 포커스가 남아 있어, 다음 Enter가 리셋을 다시 누르던 문제를 막습니다.
+  // 시작 직후 0.3초 안의 Enter는 실수로 보고 무시합니다.
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || e.repeat) return;
-    if (e.target.closest && e.target.closest('button, a, input, textarea, select, [contenteditable]')) return;
+    if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
     e.preventDefault();
-    toggle.click();
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    if (!running) start();
+    else if (performance.now() - mark > 300) finish();
   });
 
   paint();
