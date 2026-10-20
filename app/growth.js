@@ -380,7 +380,10 @@
     }
     if (pairs.length > 1 && pairs[pairs.length - 1].length === 1) pairs[pairs.length - 2].push(pairs.pop()[0]);
     const mine = pairs.find((p) => p.some((s) => s.student_id === id)) || [];
-    return mine.filter((s) => s.student_id !== id);
+    // 내 다음 사람부터 차례로 돌려 줘요. 첫 번째 사람이 내가 관찰할 기본 대상이라,
+    // 3인 1조(A·B·C)면 A→B, B→C, C→A로 돌아가며 모두 한 번씩 체크를 주고받아요.
+    const i = mine.findIndex((s) => s.student_id === id);
+    return mine.slice(i + 1).concat(mine.slice(0, i));
   }
   // 학생이 직접 고른 짝 (결석·부상 등으로 바꿀 때). 이 크롬북에만 저장돼요.
   function loadChosen() {
