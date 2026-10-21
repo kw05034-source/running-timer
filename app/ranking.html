@@ -148,6 +148,19 @@
   .error-banner { padding: 14px 18px; border: 1px solid #f7c9c9; border-radius: var(--radius-sm); background: #fff3f3; color: #d1454a; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
   .loading-banner { padding: 14px 0; color: var(--muted); font-size: 13px; }
 
+  /* 301번 버스: 기준 시간 안이면 등교 성공, 넘기면 등교 실패 */
+  .bus-banner { margin-top: 18px; padding: 14px 20px; border-radius: var(--radius-md); background: var(--navy-900); color: #fff; font-size: 15px; font-weight: 800; letter-spacing: -0.03em; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+  .bus-banner[hidden] { display: none; }
+  .bus-banner b { color: var(--gold-500); font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 18px; }
+  .bus-banner span { color: #bbcadf; font-size: 13px; font-weight: 600; }
+  .bus-badge { display: inline-block; margin-top: 3px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+  .bus-badge.ok { color: #0b7a3e; background: #dcf7e8; }
+  .bus-badge.late { color: #c2332f; background: #ffe5e3; }
+  .rank-row.is-late { background: #fffafa; }
+  .rank-row.is-late .stat-value { color: #c2332f; }
+  .bus-line { display: flex; align-items: center; gap: 10px; margin: 6px 0; color: #c2332f; font-size: 13px; font-weight: 800; }
+  .bus-line::before, .bus-line::after { content: ''; flex: 1; border-top: 2px dashed #f2a19d; }
+  .gender-summary { margin-left: 8px; color: #0b7a3e; font-size: 12px; font-weight: 800; }
   @media (max-width: 860px) {
     .gender-columns { grid-template-columns: 1fr; gap: 32px; }
   }
@@ -186,6 +199,7 @@
       </div>
     </div>
 
+    <div class="bus-banner" id="bus-banner">🚌 301번 버스 출발 <b id="bus-sec">10초</b> <span>최고기록이 이 시간 안이면 등교 성공, 넘기면 등교 실패!</span></div>
     <div id="banner"></div>
 
     <div class="gender-columns">
@@ -218,6 +232,10 @@
   const SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbw5mlmLxwSTXB7q7lsbqlGjWfkU9aTUwmwFSKeiK_Y9OyDX-eqx51AAkayE6qtAkCQS/exec';
   const REFRESH_INTERVAL_MS = 10000;
   const ACTIVITY_TYPE = 'obstacle_run';
+  // 301번 버스 기준 시간(초). 웜업 화면처럼 주소 끝에 ?t=9 를 붙이면 바꿀 수 있어요.
+  const T_PARAM = Number(new URLSearchParams(location.search).get('t'));
+  const BUS_SEC = T_PARAM >= 3 && T_PARAM <= 120 ? T_PARAM : 10;
+  document.getElementById('bus-sec').textContent = `${BUS_SEC}초`;
 
   const classTabsEl = document.getElementById('class-tabs');
   const updatedAtEl = document.getElementById('updated-at');
@@ -308,6 +326,17 @@
       : { label: '최고기록', value: entry.best === null ? '—' : `${formatSeconds(entry.best)}초` };
   }
 
+  function isOnTime(entry) {
+    return entry.best !== null && entry.best <= BUS_SEC;
+  }
+
+  function busBadgeOf(entry) {
+    if (state.mode !== 'best' || entry.best === null) return '';
+    return isOnTime(entry)
+      ? '<span class="bus-badge ok">🚌 등교 성공</span>'
+      : '<span class="bus-badge late">🏃 등교 실패</span>';
+  }
+
   function renderPodium(podiumEl, top3) {
     if (top3.length === 0) {
       podiumEl.innerHTML = '';
@@ -330,12 +359,13 @@
           <p class="podium-name">${escapeHtml(s.name)}</p>
           <p class="podium-meta">${escapeHtml(s.class)}반 · ${escapeHtml(s.number)}번</p>
           <div class="podium-value">${primaryValueOf(entry)}</div>
+          ${busBadgeOf(entry)}
           <div class="podium-base">${positionLabels[i]}</div>
         </div>`;
     }).join('');
   }
 
-  function renderRestList(rankListEl, restHeadingEl, rest, startRank) {
+  function renderRestList(rankListEl, restHeadingEl, rest, startRank, prevEntry) {
     if (rest.length === 0) {
       restHeadingEl.hidden = true;
       rankListEl.innerHTML = '';
@@ -347,9 +377,14 @@
     rankListEl.innerHTML = rest.map((entry, index) => {
       const rank = startRank + index;
       const s = entry.student;
+      const late = state.mode === 'best' && entry.best !== null && !isOnTime(entry);
+      // 기록 순으로 정렬돼 있으니, 처음으로 기준 시간을 넘긴 학생 앞에 버스 출발선을 그어요.
+      const prev = index === 0 ? prevEntry : rest[index - 1];
+      const line = late && prev && isOnTime(prev)
+        ? `<div class="bus-line">🚌 ${BUS_SEC}초 버스 출발! 여기부터 등교 실패</div>` : '';
 
-      return `
-        <div class="rank-row">
+      return `${line}
+        <div class="rank-row${late ? ' is-late' : ''}">
           <div class="rank-number">${rank}</div>
           <div class="avatar" aria-hidden="true">${escapeHtml(String(s.name).slice(0, 1))}</div>
           <div class="student-info">
@@ -358,7 +393,7 @@
           </div>
           <div class="stat-block">
             <div class="stat-value">${primaryValueOf(entry)}</div>
-            <div class="stat-label">${state.mode === 'best' ? '최고기록' : '도전횟수'}</div>
+            ${state.mode === 'best' ? busBadgeOf(entry) || '<div class="stat-label">최고기록</div>' : '<div class="stat-label">도전횟수</div>'}
           </div>
         </div>`;
     }).join('');
@@ -367,7 +402,8 @@
   function renderGenderColumn(gender) {
     const col = columns[gender];
     const stats = computeStudentStats(gender);
-    col.countEl.textContent = `${stats.length}명`;
+    const onTime = stats.filter(isOnTime).length;
+    col.countEl.innerHTML = `${stats.length}명${state.mode === 'best' ? `<span class="gender-summary">🚌 등교 성공 ${onTime}명</span>` : ''}`;
 
     let sorted;
     if (state.mode === 'best') {
@@ -388,7 +424,7 @@
     const top3 = sorted.slice(0, 3);
     const rest = sorted.slice(3);
     renderPodium(col.podiumEl, top3);
-    renderRestList(col.rankListEl, col.restHeadingEl, rest, 4);
+    renderRestList(col.rankListEl, col.restHeadingEl, rest, 4, top3[2]);
   }
 
   function renderBoard() {
@@ -438,6 +474,7 @@
     const btn = event.target.closest('.mode-btn');
     if (!btn) return;
     state.mode = btn.dataset.mode;
+    document.getElementById('bus-banner').hidden = state.mode !== 'best';
     document.querySelectorAll('.mode-btn').forEach((b) => b.classList.toggle('is-selected', b === btn));
     renderBoard();
   });
