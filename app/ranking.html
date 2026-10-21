@@ -441,6 +441,8 @@
     return result.data;
   }
 
+  let loadFailures = 0;
+  let loadedOnce = false;
   async function loadData() {
     try {
       const [students, records] = await Promise.all([
@@ -456,8 +458,17 @@
       renderClassTabs();
       renderBoard();
       updatedAtEl.textContent = `마지막 업데이트 ${new Date().toLocaleTimeString('ko-KR', { hour12: false })}`;
+      loadFailures = 0;
+      loadedOnce = true;
     } catch (error) {
       console.error('랭킹 데이터를 불러오지 못했습니다.', error);
+      loadFailures += 1;
+      // 여러 크롬북이 동시에 시트를 부르면 한두 번은 실패할 수 있어요. 이미 보이는 랭킹이 있으면
+      // 그대로 두고 10초 뒤에 다시 불러오고, 연속 3번(약 30초) 실패할 때만 오류를 보여 줘요.
+      if (loadedOnce && loadFailures < 3) {
+        updatedAtEl.textContent = '다시 불러오는 중…';
+        return;
+      }
       bannerEl.innerHTML = `<div class="error-banner">데이터를 불러오지 못했어요. 인터넷 연결을 확인해 주세요. (${escapeHtml(error.message)})</div>`;
     }
   }
