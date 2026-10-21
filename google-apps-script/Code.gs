@@ -66,6 +66,8 @@ var AVAILABLE_ACTIONS = ['students', 'records', 'growth', 'health'];
 var RESET_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
 // 마지막 초기화 시각. 각 크롬북은 학생 명단을 불러올 때 이 값을 보고 자기 기록을 지웁니다.
 var RESET_AT_PROPERTY = 'RESET_AT';
+// 반별 초기화 시각 ({"1": "2026-..."}). 각 크롬북은 이 값을 보고 그 반 학생의 기록만 지웁니다.
+var RESET_CLASSES_PROPERTY = 'RESET_AT_BY_CLASS';
 var RECORD_ID_PROPERTY_PREFIX = 'record_id_hash:';
 
 /**
@@ -92,7 +94,8 @@ function doGet(e) {
           STUDENTS_SHEET_NAME,
           STUDENTS_HEADERS
         ),
-        reset_at: PropertiesService.getScriptProperties().getProperty(RESET_AT_PROPERTY) || ''
+        reset_at: PropertiesService.getScriptProperties().getProperty(RESET_AT_PROPERTY) || '',
+        reset_classes: readClassResets_()
       });
     }
 
@@ -149,6 +152,9 @@ function doPost(e) {
     }
     if (request && typeof request === 'object' && request.type === 'reset') {
       return resetAll_(request);
+    }
+    if (request && typeof request === 'object' && request.type === 'reset_class') {
+      return resetClass_(request);
     }
     validateRequestShape_(request);
     var inputRecord = normalizeRecordInput_(request.record);
@@ -687,6 +693,88 @@ function resetAll_(request) {
     });
   } finally {
     lock.releaseLock();
+  }
+}
+
+/**
+ * 반별 초기화: Records·Growth 시트를 백업 탭으로 복사한 뒤, class 열이 고른 반인 줄만 지웁니다.
+ * 다른 반 기록과 Students 시트는 그대로 둡니다.
+ */
+function resetClass_(request) {
+  var pin = request && typeof request.pin === 'string' ? request.pin : '';
+  if (!pin || sha256Hex_(pin) !== RESET_PIN_SHA256) {
+    throwAppError_('INVALID_PIN', '선생님 번호가 맞지 않습니다.', 403);
+  }
+  var classNo = Number(request.class);
+  if (!(classNo >= 1 && classNo <= 30 && Math.floor(classNo) === classNo)) {
+    throwAppError_('INVALID_REQUEST', '지울 반 번호가 올바르지 않습니다.', 400);
+  }
+
+  var spreadsheet = getSpreadsheet_();
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throwAppError_(
+      'LOCK_TIMEOUT',
+      '동시 저장이 많아 잠금을 획득하지 못했습니다. 잠시 후 다시 시도하세요.',
+      503
+    );
+  }
+
+  try {
+    var now = new Date();
+    var stamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMdd HHmmss');
+    var cleared = {};
+    [RECORDS_SHEET_NAME, GROWTH_SHEET_NAME].forEach(function (name) {
+      var sheet = spreadsheet.getSheetByName(name);
+      var lastRow = sheet ? sheet.getLastRow() : 0;
+      cleared[name] = 0;
+      if (lastRow <= 1) {
+        return;
+      }
+      var lastColumn = sheet.getLastColumn();
+      var classIndex = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0].indexOf('class');
+      if (classIndex < 0) {
+        throwAppError_('SHEET_HEADER_MISMATCH', name + ' 시트에 class 열이 없습니다.', 500);
+      }
+      var range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
+      var rows = range.getValues();
+      var keep = rows.filter(function (row) {
+        return Number(row[classIndex]) !== classNo;
+      });
+      cleared[name] = rows.length - keep.length;
+      if (!cleared[name]) {
+        return;
+      }
+      sheet.copyTo(spreadsheet).setName('백업 ' + classNo + '반 ' + name + ' ' + stamp);
+      range.clearContent();
+      if (keep.length) {
+        sheet.getRange(2, 1, keep.length, lastColumn).setValues(keep);
+      }
+    });
+
+    var resetAt = now.toISOString();
+    var marks = readClassResets_();
+    marks[String(classNo)] = resetAt;
+    PropertiesService.getScriptProperties().setProperty(RESET_CLASSES_PROPERTY, JSON.stringify(marks));
+
+    return jsonResponse_({
+      ok: true,
+      class: classNo,
+      reset_at: resetAt,
+      reset_classes: marks,
+      cleared: cleared
+    });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function readClassResets_() {
+  try {
+    var parsed = JSON.parse(PropertiesService.getScriptProperties().getProperty(RESET_CLASSES_PROPERTY) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (error) {
+    return {};
   }
 }
 

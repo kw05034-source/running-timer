@@ -739,23 +739,31 @@
     const err = $('reset-error');
     const fail = (msg) => { err.textContent = msg; err.hidden = false; };
     if (!pin) { fail('선생님 번호를 넣어 주세요.'); return; }
+    const target = $('reset-class').value;
+    const classNo = target === 'all' ? null : Number(target);
     let result;
     try {
-      result = await postJson({ type: 'reset', pin });
+      result = await postJson(classNo ? { type: 'reset_class', class: classNo, pin } : { type: 'reset', pin });
     } catch (error) {
       fail('인터넷 연결을 확인하고 다시 눌러 주세요.'); return;
     }
     if (!result.ok) {
       const code = result.error && result.error.code;
       if (code === 'INVALID_PIN') fail('번호가 맞지 않아요.');
-      else if (code === 'INVALID_REQUEST') fail('Apps Script를 새 버전으로 배포해야 초기화할 수 있어요.');
+      else if (code === 'INVALID_REQUEST') fail(classNo ? 'Apps Script를 새 버전으로 배포해야 반별로 지울 수 있어요. 아무것도 지우지 않았어요.' : 'Apps Script를 새 버전으로 배포해야 초기화할 수 있어요.');
       else fail('초기화하지 못했어요. 잠시 후 다시 눌러 주세요.');
       return;
     }
-    clearLocalRecords(result.reset_at);
+    if (classNo) {
+      window.applyClassResets(result.reset_classes, students);
+      runs = readRuns();
+      outbox = readOutbox();
+    } else {
+      clearLocalRecords(result.reset_at);
+    }
     setSyncNote();
     render();
-    showToast('모든 기록을 지웠어요. 다른 크롬북은 앱을 새로고침하면 지워져요.');
+    showToast(`${classNo ? `${classNo}반` : '모든 반'} 기록을 지웠어요. 다른 크롬북은 앱을 새로고침하면 지워져요.`);
   }
   async function sha256(text) {
     const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -796,10 +804,10 @@
       </section>
       <section class="card"><h3>학생들이 고른 집중 전략</h3>
         <div class="bars">${counts.map((c) => `<div style="--c:${c.st.color}"><span>${c.st.name}</span><i style="width:${(c.n / max) * 100}%"></i><span class="num">${c.n}</span></div>`).join('')}</div>
-        <div class="row"><button type="button" class="ghost" data-action="refresh">시트에서 다시 불러오기</button><button type="button" class="ghost" data-action="copy-csv">표를 CSV로 복사</button><a class="ghost btn-link" href="./wall.html" target="_blank" rel="noopener">소감 담벼락 열기 ↗</a><button type="button" class="ghost" data-action="lock-teacher">🔒 잠그기</button><button type="button" class="ghost danger" data-action="reset-open">전체 초기화…</button></div>
+        <div class="row"><button type="button" class="ghost" data-action="refresh">시트에서 다시 불러오기</button><button type="button" class="ghost" data-action="copy-csv">표를 CSV로 복사</button><a class="ghost btn-link" href="./wall.html" target="_blank" rel="noopener">소감 담벼락 열기 ↗</a><button type="button" class="ghost" data-action="lock-teacher">🔒 잠그기</button><button type="button" class="ghost danger" data-action="reset-open">기록 초기화…</button></div>
         <form class="reset-box" id="reset-form" autocomplete="off" hidden>
-          <p><b>모든 기록을 지워요.</b> 시트의 측정 기록(Records)과 성장판(Growth)을 비우고, 각 크롬북은 다음에 앱을 열 때 자기 기록을 지워요. 지운 시트 내용은 '백업' 탭으로 복사해 둬요. 학생 명단은 그대로예요.</p>
-          <div class="row"><input id="reset-pin" type="password" inputmode="numeric" maxlength="12" aria-label="선생님 번호" placeholder="선생님 번호"><button type="submit" class="primary danger">정말 지우기</button><button type="button" class="ghost" data-action="reset-close">취소</button></div>
+          <p><b>고른 반의 기록만 지워요.</b> 시트의 측정 기록(Records)과 성장판(Growth)에서 그 반 줄을 지우고, 각 크롬북은 다음에 앱을 열 때 그 반 학생 기록만 지워요. 다른 반 기록과 학생 명단은 그대로예요. 지운 시트 내용은 '백업' 탭으로 복사해 둬요.</p>
+          <div class="row"><select id="reset-class" aria-label="지울 반">${classes().map((c) => `<option value="${c}"${c === state.classNo ? ' selected' : ''}>${c}반만</option>`).join('')}<option value="all">모든 반</option></select><input id="reset-pin" type="password" inputmode="numeric" maxlength="12" aria-label="선생님 번호" placeholder="선생님 번호"><button type="submit" class="primary danger">정말 지우기</button><button type="button" class="ghost" data-action="reset-close">취소</button></div>
           <p class="pin-error" id="reset-error" hidden></p>
         </form></section>
       <section class="tablebox"><table><thead><tr><th>번호</th><th>이름</th><th>조</th><th>기준</th><th>최고(재측정)</th><th>변화</th><th>집중 전략</th><th>목표</th><th>상태</th><th>자신감 전→후</th><th>자기효능감 정의 (전 / 후)</th><th>성찰</th></tr></thead><tbody>
@@ -1044,10 +1052,15 @@
     const result = await response.json();
     if (!result.ok) throw new Error('학생 명단을 불러오지 못했습니다.');
     applyReset(result.reset_at);
-    return result.data.map((row) => ({
+    const list = result.data.map((row) => ({
       student_id: String(row.student_id), grade: Number(row.grade), class: Number(row.class),
       number: Number(row.number), name: String(row.name), group_or_team: String(row.group_or_team)
     }));
+    if (window.applyClassResets && window.applyClassResets(result.reset_classes, list)) {
+      runs = readRuns();
+      outbox = readOutbox();
+    }
+    return list;
   }
   async function init() {
     try {
