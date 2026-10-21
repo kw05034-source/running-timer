@@ -63,6 +63,10 @@
       `수업 전과 비교해 내 생각이 달라진 점은 ${BLANK}.`,
       `오늘 내가 해낸 것은 ${BLANK}. 그때 ${BLANK} 느낌이 들었다.`
     ],
+    good: [
+      `짝이 ${BLANK}을(를) 체크해 줘서 ${BLANK}을(를) 고칠 수 있었다.`,
+      `짝의 피드백 덕분에 ${BLANK}. 그래서 ${BLANK}.`
+    ],
     next: [
       `다음 시간에는 ${BLANK}을(를) 바꿔 보고 싶다. 왜냐하면 ${BLANK}.`
     ]
@@ -656,7 +660,8 @@
       <h4 class="sub">① 자기효능감 다시 쓰기</h4>
       ${efficacyHtml(r, 'after')}
       <h4 class="sub">② 성찰</h4>
-      <label class="q" for="refl1">어떤 전략이 효과가 있었나요? 몸에서 무엇이 달라졌나요?<textarea id="refl1" maxlength="300" placeholder="예: 반환선 앞에서 보폭을 줄이니 덜 미끄러지고 바로 출발할 수 있었다.">${esc(r.refl1)}</textarea></label>
+      <label class="q" for="refl1">짝의 피드백이 도움이 되었나요? 어떤 전략이 효과가 있었고, 몸에서 무엇이 달라졌나요?<textarea id="refl1" maxlength="300" placeholder="예: 짝이 회전할 때 발이 늦다고 체크해 줘서, 반환선 앞에서 보폭을 줄였더니 바로 출발할 수 있었다.">${esc(r.refl1)}</textarea></label>
+      ${framesHtml('refl1', FRAMES.good)}
       <label class="q" for="refl2">다음 시간에는 무엇을 바꿔 볼까요?<textarea id="refl2" maxlength="300" placeholder="자유롭게 써도 되고, 아래 문장틀로 시작해도 돼요.">${esc(r.refl2)}</textarea></label>
       ${framesHtml('refl2', FRAMES.next)}
       ${uncheckedHtml(r)}
