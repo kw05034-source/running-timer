@@ -945,10 +945,13 @@
   }
 
   // 정지 = 도착. 목표 시간 안이면 성공, 넘기면 paint()에서 이미 실패 처리됩니다.
+  const TEST_PRESS_MS = 2000;
   function finish(){
     if (!running) return;
     if (window.timerBeep) timerBeep('stop');
     stop();
+    // 2초 안에 정지하면 부저 테스트로 보고, 결과 없이 0초 대기 상태로 돌아갑니다.
+    if (base < TEST_PRESS_MS) { resetAll(); stateEl.textContent = sState.textContent = '부저 확인 ✓'; return; }
     if (!failed && base > 0 && base < TARGET_MS) succeed();
   }
 
