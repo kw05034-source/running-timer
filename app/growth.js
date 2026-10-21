@@ -21,7 +21,7 @@
   const PEER_POLL_MS = 15000;
   const TEACHER_UNLOCK_KEY = 'growth-teacher-unlocked';
   // 교사 화면 잠금 번호의 SHA-256 값입니다. 번호를 바꾸려면 새 번호의 SHA-256 값으로 바꿔 주세요.
-  const TEACHER_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
+  const TEACHER_PIN_SHA256 = '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4';
   const RECORD_MIN_SEC = 5; // 랭킹(Records 시트)에 들어가는 최소 기록 (측정 앱 기록 측정과 같음)
   const MIN_SEC = 2;       // 이보다 짧으면 잘못 누른 것으로 보고 인정하지 않음
   const CHECK_MAX_SEC = 20; // 이보다 길면 정지를 늦게 눌렀는지 확인 안내
