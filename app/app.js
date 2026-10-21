@@ -575,7 +575,7 @@
       throw new Error(result.error && result.error.message ? result.error.message : '학생 명단을 불러오지 못했습니다.');
     }
     applyReset(result.reset_at);
-    return result.data.map((row) => ({
+    const list = result.data.map((row) => ({
       student_id: String(row.student_id),
       grade: Number(row.grade),
       class: Number(row.class),
@@ -583,6 +583,11 @@
       name: String(row.name),
       group_or_team: String(row.group_or_team)
     }));
+    // 반별 초기화가 있었으면 그 반 학생 기록만 지우고 다시 읽어요 (reset-local.js).
+    if (window.applyClassResets && window.applyClassResets(result.reset_classes, list)) {
+      records = readRecords();
+    }
+    return list;
   }
 
   async function init() {
