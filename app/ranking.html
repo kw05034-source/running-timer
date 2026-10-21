@@ -148,7 +148,7 @@
   .error-banner { padding: 14px 18px; border: 1px solid #f7c9c9; border-radius: var(--radius-sm); background: #fff3f3; color: #d1454a; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
   .loading-banner { padding: 14px 0; color: var(--muted); font-size: 13px; }
 
-  /* 301번 버스: 기준 시간 안이면 등교 성공, 넘기면 등교 실패 */
+  /* 301번 버스: 기준 시간 안이면 등교 성공, 넘기면 지각 */
   .bus-banner { margin-top: 18px; padding: 14px 20px; border-radius: var(--radius-md); background: var(--navy-900); color: #fff; font-size: 15px; font-weight: 800; letter-spacing: -0.03em; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
   .bus-banner[hidden] { display: none; }
   .bus-banner b { color: var(--gold-500); font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 18px; }
@@ -199,7 +199,7 @@
       </div>
     </div>
 
-    <div class="bus-banner" id="bus-banner">🚌 301번 버스 출발 <b id="bus-sec">10초</b> <span>최고기록이 이 시간 안이면 등교 성공, 넘기면 등교 실패!</span></div>
+    <div class="bus-banner" id="bus-banner">🚌 301번 버스 출발 <b id="bus-sec">10초</b> <span>최고기록이 이 시간 안이면 등교 성공, 넘기면 지각!</span></div>
     <div id="banner"></div>
 
     <div class="gender-columns">
@@ -334,7 +334,7 @@
     if (state.mode !== 'best' || entry.best === null) return '';
     return isOnTime(entry)
       ? '<span class="bus-badge ok">🚌 등교 성공</span>'
-      : '<span class="bus-badge late">🏃 등교 실패</span>';
+      : '<span class="bus-badge late">⏰ 지각</span>';
   }
 
   function renderPodium(podiumEl, top3) {
@@ -381,7 +381,7 @@
       // 기록 순으로 정렬돼 있으니, 처음으로 기준 시간을 넘긴 학생 앞에 버스 출발선을 그어요.
       const prev = index === 0 ? prevEntry : rest[index - 1];
       const line = late && prev && isOnTime(prev)
-        ? `<div class="bus-line">🚌 ${BUS_SEC}초 버스 출발! 여기부터 등교 실패</div>` : '';
+        ? `<div class="bus-line">🚌 ${BUS_SEC}초 버스 출발! 여기서부터 지각!</div>` : '';
 
       return `${line}
         <div class="rank-row${late ? ' is-late' : ''}">
