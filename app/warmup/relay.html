@@ -580,12 +580,12 @@
   }
 
   // "정지": 마지막 주자가 결승선을 통과하면 팀 기록을 보여 줍니다.
-  const TEST_PRESS_MS = 2000;
+  const TEST_PRESS_MS = 5000;
   function finish(){
     if (!running) return;
     if (window.timerBeep) timerBeep('stop');
     stop();
-    // 2초 안에 정지하면 부저 테스트로 보고, 결과 없이 0초 대기 상태로 돌아갑니다.
+    // 5초 안에 정지하면 부저 테스트로 보고, 결과 없이 0초 대기 상태로 돌아갑니다.
     if (base < TEST_PRESS_MS) { resetAll(); stateEl.textContent = sState.textContent = '부저 확인 ✓'; return; }
     showResult('ok');
   }
