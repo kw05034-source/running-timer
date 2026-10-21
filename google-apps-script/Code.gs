@@ -68,6 +68,8 @@ var RESET_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e05489
 var RESET_AT_PROPERTY = 'RESET_AT';
 // 반별 초기화 시각 ({"1": "2026-..."}). 각 크롬북은 이 값을 보고 그 반 학생의 기록만 지웁니다.
 var RESET_CLASSES_PROPERTY = 'RESET_AT_BY_CLASS';
+// 선생님이 정한 짝 ({"20101": "3"}). 짝 번호가 같은 학생끼리 짝(또는 3인 1조)이 됩니다.
+var PAIRS_PROPERTY = 'PAIRS';
 var RECORD_ID_PROPERTY_PREFIX = 'record_id_hash:';
 
 /**
@@ -95,7 +97,8 @@ function doGet(e) {
           STUDENTS_HEADERS
         ),
         reset_at: PropertiesService.getScriptProperties().getProperty(RESET_AT_PROPERTY) || '',
-        reset_classes: readClassResets_()
+        reset_classes: readClassResets_(),
+        pairs: readPairs_()
       });
     }
 
@@ -121,7 +124,8 @@ function doGet(e) {
           growthSpreadsheet,
           GROWTH_SHEET_NAME,
           GROWTH_HEADERS
-        )
+        ),
+        pairs: readPairs_()
       });
     }
 
@@ -155,6 +159,9 @@ function doPost(e) {
     }
     if (request && typeof request === 'object' && request.type === 'reset_class') {
       return resetClass_(request);
+    }
+    if (request && typeof request === 'object' && request.type === 'pairs') {
+      return savePairs_(request);
     }
     validateRequestShape_(request);
     var inputRecord = normalizeRecordInput_(request.record);
@@ -766,6 +773,66 @@ function resetClass_(request) {
     });
   } finally {
     lock.releaseLock();
+  }
+}
+
+/**
+ * 짝 저장: 고른 반 학생들의 짝 번호를 통째로 바꿉니다. 빈 값이면 그 학생은 번호순 자동 짝으로 돌아갑니다.
+ * body: { type: "pairs", pin, class, groups: { student_id: "짝 번호" } }
+ */
+function savePairs_(request) {
+  var pin = request && typeof request.pin === 'string' ? request.pin : '';
+  if (!pin || sha256Hex_(pin) !== RESET_PIN_SHA256) {
+    throwAppError_('INVALID_PIN', '선생님 번호가 맞지 않습니다.', 403);
+  }
+  var classNo = Number(request.class);
+  var groups = request.groups;
+  if (!(classNo >= 1 && classNo <= 30 && Math.floor(classNo) === classNo) ||
+      !groups || typeof groups !== 'object' || Array.isArray(groups)) {
+    throwAppError_('INVALID_REQUEST', '짝 정보가 올바르지 않습니다.', 400);
+  }
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throwAppError_(
+      'LOCK_TIMEOUT',
+      '동시 저장이 많아 잠금을 획득하지 못했습니다. 잠시 후 다시 시도하세요.',
+      503
+    );
+  }
+
+  try {
+    var classIds = {};
+    readSheetRows_(getSpreadsheet_(), STUDENTS_SHEET_NAME, STUDENTS_HEADERS).forEach(function (row) {
+      if (Number(row.class) === classNo) {
+        classIds[String(row.student_id)] = true;
+      }
+    });
+    var pairs = readPairs_();
+    Object.keys(pairs).forEach(function (id) {
+      if (classIds[id]) {
+        delete pairs[id];
+      }
+    });
+    Object.keys(groups).forEach(function (id) {
+      var label = String(groups[id] == null ? '' : groups[id]).trim().slice(0, 10);
+      if (classIds[String(id)] && label) {
+        pairs[String(id)] = label;
+      }
+    });
+    PropertiesService.getScriptProperties().setProperty(PAIRS_PROPERTY, JSON.stringify(pairs));
+    return jsonResponse_({ ok: true, class: classNo, pairs: pairs });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function readPairs_() {
+  try {
+    var parsed = JSON.parse(PropertiesService.getScriptProperties().getProperty(PAIRS_PROPERTY) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (error) {
+    return {};
   }
 }
 

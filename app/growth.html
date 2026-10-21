@@ -216,6 +216,22 @@
   .kpi b { display: block; font-size: 13px; color: var(--muted); }
   .kpi strong { display: block; font-size: 30px; font-variant-numeric: tabular-nums; }
   .kpi em { font-style: normal; font-size: 14px; color: var(--muted); margin-left: 3px; }
+  .pair-src { font-size: 13px; font-weight: 600; color: var(--muted); margin-left: 6px; }
+  .pair-help { margin: 0 0 12px; color: var(--muted); line-height: 1.5; }
+  .pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .pair { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--canvas); font-size: 14px; }
+  .pair b { color: var(--navy-700); }
+  .pair small { color: var(--muted); }
+  .pair em { font-style: normal; font-weight: 700; color: var(--red-600); }
+  .pair.bad { border-color: #f3c0bb; background: #fff5f4; }
+  .pair.out { opacity: .7; }
+  .pair-edit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; align-items: start; }
+  .pair-inputs { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+  .pair-inputs label { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 14px; }
+  .pair-inputs i { font-style: normal; color: var(--muted); font-size: 12px; }
+  .pair-inputs input { width: 56px; font: inherit; text-align: center; padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; min-height: 40px; }
+  #pair-form input { font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; min-height: 44px; }
+  @media (max-width: 760px) { .pair-edit { grid-template-columns: 1fr; } }
   .bars { display: grid; gap: 8px; }
   .bars div { display: grid; grid-template-columns: 140px minmax(0, 1fr) 36px; gap: 10px; align-items: center; font-size: 14px; }
   .bars i { display: block; height: 14px; border-radius: 7px; background: var(--c); }
