@@ -79,6 +79,9 @@
 
   let runs = readRuns();
   let outbox = readOutbox();
+  let teacherPairs = {};      // 선생님이 정한 짝 번호 (시트에서 받아요)
+  let pairDraft = null;       // 교사 화면에서 고치는 중인 짝 번호 (저장 전) { classNo, labels }
+  let teacherPin = '';        // 짝 저장에 쓰려고 이번에 입력한 선생님 번호를 기억해요 (화면을 닫으면 사라져요)
   let flushing = false;
   let teacherUnlocked = (() => { try { return sessionStorage.getItem(TEACHER_UNLOCK_KEY) === '1'; } catch (error) { return false; } })();
   let toastTimer = null;
@@ -281,6 +284,7 @@
         return false;
       }
       state.sheetSupported = true;
+      if (result.pairs && typeof result.pairs === 'object') teacherPairs = result.pairs;
       result.data.forEach((row) => {
         if (!row || !row.student_id) return;
         const remote = fromRow(row);
@@ -363,11 +367,10 @@
   // 조 이름이 "견학" 또는 "불참"으로 시작하는 학생(체육 수업에 참여하지 않는 학생)은 짝에서 빼요.
   const isOut = (s) => /^(견학|불참)/.test(s.group_or_team);
   const classmates = (me) => students.filter((s) => Number(s.class) === Number(me.class) && !isOut(s));
-  function autoPartnersOf(id) {
-    const me = getStudent(id);
-    if (!me || isOut(me)) return [];
-    const byNo = (a, b) => a.number - b.number;
-    const mates = classmates(me);
+  const byNo = (a, b) => a.number - b.number;
+  // 번호순 자동 짝 묶음 (반 전체). 교사 화면의 짝 번호 기본값으로도 써요.
+  function autoGroups(classNo) {
+    const mates = students.filter((s) => Number(s.class) === Number(classNo) && !isOut(s));
     const boys = mates.filter((s) => s.group_or_team.startsWith('남')).sort(byNo);
     const girls = mates.filter((s) => s.group_or_team.startsWith('여')).sort(byNo);
     let pairs;
@@ -379,11 +382,31 @@
       pairs = inTwos([...mates].sort(byNo));
     }
     if (pairs.length > 1 && pairs[pairs.length - 1].length === 1) pairs[pairs.length - 2].push(pairs.pop()[0]);
-    const mine = pairs.find((p) => p.some((s) => s.student_id === id)) || [];
+    return pairs;
+  }
+  // 같은 묶음 안에서 내 다음 사람부터 차례로 돌려 줘요.
+  function rotateFrom(group, id) {
+    const mine = group.some((s) => s.student_id === id) ? group : [];
     // 내 다음 사람부터 차례로 돌려 줘요. 첫 번째 사람이 내가 관찰할 기본 대상이라,
     // 3인 1조(A·B·C)면 A→B, B→C, C→A로 돌아가며 모두 한 번씩 체크를 주고받아요.
     const i = mine.findIndex((s) => s.student_id === id);
     return mine.slice(i + 1).concat(mine.slice(0, i));
+  }
+  function autoPartnersOf(id) {
+    const me = getStudent(id);
+    if (!me || isOut(me)) return [];
+    return rotateFrom(autoGroups(me.class).find((g) => g.some((s) => s.student_id === id)) || [], id);
+  }
+  // 선생님이 교사 화면에서 정한 짝. 짝 번호가 같은 학생끼리 번호순으로 돌아가며 관찰해요. 모든 크롬북에 함께 적용돼요.
+  function teacherGroupOf(id, pairs = teacherPairs) {
+    const me = getStudent(id);
+    const label = pairs[id];
+    if (!me || isOut(me) || !label) return null;
+    return classmates(me).filter((s) => pairs[s.student_id] === label).sort(byNo);
+  }
+  function teacherPartnersOf(id) {
+    const group = teacherGroupOf(id);
+    return group ? rotateFrom(group, id) : null;
   }
   // 학생이 직접 고른 짝 (결석·부상 등으로 바꿀 때). 이 크롬북에만 저장돼요.
   function loadChosen() {
@@ -402,6 +425,11 @@
   function partnerHtml(id) {
     const me = getStudent(id);
     if (!me || isOut(me)) return '';
+    const byTeacher = teacherPartnersOf(id);
+    if (byTeacher) {
+      const tn = byTeacher.length ? byTeacher.map((s) => `<b>${esc(s.number)}번 ${esc(s.name)}</b>`).join(', ') : '<b>아직 없어요</b>';
+      return `<div class="sentence partner"><span>내 짝: ${tn} <small>(선생님이 정함)</small></span></div>`;
+    }
     const chosen = chosenPartnerOf(id);
     const ps = chosen ? [chosen] : autoPartnersOf(id);
     const names = ps.length ? ps.map((s) => `<b>${esc(s.number)}번 ${esc(s.name)}</b>`).join(', ') : '<b>아직 없어요</b>';
@@ -414,6 +442,8 @@
 
   // 내가 관찰할 짝 (3인 1조면 고를 수 있어요)
   function partnersOf(id) {
+    const byTeacher = teacherPartnersOf(id);
+    if (byTeacher) return byTeacher;
     const chosen = chosenPartnerOf(id);
     return chosen ? [chosen] : autoPartnersOf(id);
   }
@@ -780,6 +810,92 @@
         <p class="pin-error" id="pin-error" hidden>번호가 맞지 않아요.</p></section>`;
     $('pin-input').focus();
   }
+  // ---- 짝 편성 (교사 화면) ----
+  // 지금 이 반에 적용되는 짝 번호. 선생님이 정한 짝이 있으면 그것을, 없으면 번호순 자동 짝 순서를 번호로 보여 줘요.
+  function currentPairLabels(classNo) {
+    const mates = students.filter((s) => Number(s.class) === Number(classNo) && !isOut(s));
+    const labels = {};
+    if (mates.some((s) => teacherPairs[s.student_id])) {
+      mates.forEach((s) => { labels[s.student_id] = teacherPairs[s.student_id] || ''; });
+    } else {
+      autoGroups(classNo).forEach((g, i) => g.forEach((s) => { labels[s.student_id] = String(i + 1); }));
+    }
+    return labels;
+  }
+  function pairPreviewHtml(classNo, labels) {
+    const mates = students.filter((s) => Number(s.class) === Number(classNo) && !isOut(s)).sort(byNo);
+    const groups = new Map();
+    mates.forEach((s) => {
+      const l = String(labels[s.student_id] || '').trim();
+      if (!groups.has(l)) groups.set(l, []);
+      groups.get(l).push(s);
+    });
+    const name = (s) => `${esc(s.number)} ${esc(s.name)}`;
+    const items = [...groups.entries()].map(([l, g]) => {
+      if (!l) return `<div class="pair bad"><b>짝 번호 없음</b><span>${g.map(name).join(' · ')}</span><em>번호를 넣어 주세요</em></div>`;
+      const warn = g.length === 1 ? '혼자예요' : g.length > 3 ? `${g.length}명이에요` : '';
+      // 관찰 순서: 번호순으로 돌아가며 다음 사람을 봐요 (A→B, B→C, C→A).
+      const order = g.length > 2 ? `<small>${g.map((s) => esc(s.name)).concat(esc(g[0].name)).join(' → ')}</small>` : '';
+      return `<div class="pair${warn ? ' bad' : ''}"><b>짝 ${esc(l)}</b><span>${g.map(name).join(' · ')}</span>${order}${warn ? `<em>${warn}</em>` : ''}</div>`;
+    });
+    const out = students.filter((s) => Number(s.class) === Number(classNo) && isOut(s)).sort(byNo);
+    if (out.length) items.push(`<div class="pair out"><b>견학·불참</b><span>${out.map(name).join(' · ')}</span></div>`);
+    return items.join('') || '<p>이 반 학생 명단이 없어요.</p>';
+  }
+  function pairCardHtml() {
+    const classNo = state.classNo;
+    const editing = pairDraft && pairDraft.classNo === classNo;
+    const labels = editing ? pairDraft.labels : currentPairLabels(classNo);
+    const mates = students.filter((s) => Number(s.class) === classNo && !isOut(s)).sort(byNo);
+    const byTeacher = mates.some((s) => teacherPairs[s.student_id]);
+    const head = `<h3>짝 편성 <small class="pair-src">${byTeacher ? '선생님이 정한 짝' : '번호순 자동 짝 (남녀 번호순)'}</small></h3>`;
+    if (!editing) {
+      return `<section class="card">${head}<div class="pairs" id="pair-preview">${pairPreviewHtml(classNo, labels)}</div>
+        <div class="row"><button type="button" class="ghost" data-action="pair-edit">짝 바꾸기…</button></div></section>`;
+    }
+    return `<section class="card">${head}
+      <p class="pair-help">짝 번호가 같은 학생끼리 짝이 돼요. 3명이면 번호순으로 돌아가며 관찰해요. 저장하면 모든 크롬북에 적용돼요(학생 화면은 새로고침하거나 학생을 다시 고르면 바뀌어요).</p>
+      <div class="pair-edit">
+        <div class="pair-inputs">${mates.map((s) => `<label><span>${esc(s.number)} ${esc(s.name)} <i>${esc(s.group_or_team)}</i></span><input data-pair-for="${esc(s.student_id)}" value="${esc(labels[s.student_id] || '')}" maxlength="10" inputmode="numeric" aria-label="${esc(s.name)} 짝 번호"></label>`).join('')}</div>
+        <div class="pairs" id="pair-preview">${pairPreviewHtml(classNo, labels)}</div>
+      </div>
+      <form class="row" id="pair-form" autocomplete="off">
+        <input id="pair-pin" type="password" inputmode="numeric" maxlength="12" aria-label="선생님 번호" placeholder="선생님 번호" value="${esc(teacherPin)}">
+        <button type="submit" class="primary">짝 저장</button>
+        <button type="button" class="ghost" data-action="pair-auto">번호순 자동으로 채우기</button>
+        <button type="button" class="ghost" data-action="pair-cancel">취소</button>
+      </form>
+      <p class="pin-error" id="pair-error" hidden></p></section>`;
+  }
+  async function savePairs() {
+    const pin = $('pair-pin').value.trim();
+    const err = $('pair-error');
+    const fail = (msg) => { err.textContent = msg; err.hidden = false; };
+    if (!pin) { fail('선생님 번호를 넣어 주세요.'); return; }
+    const { classNo, labels } = pairDraft;
+    if (Object.values(labels).some((l) => !String(l).trim())) { fail('짝 번호가 비어 있는 학생이 있어요.'); return; }
+    const sizes = {};
+    Object.values(labels).forEach((l) => { sizes[l] = (sizes[l] || 0) + 1; });
+    if (Object.values(sizes).some((n) => n === 1)) { fail('짝 없이 혼자인 학생이 있어요. 다른 짝에 넣어 주세요.'); return; }
+    let result;
+    try {
+      result = await postJson({ type: 'pairs', pin, class: classNo, groups: labels });
+    } catch (error) {
+      fail('인터넷 연결을 확인하고 다시 눌러 주세요.'); return;
+    }
+    if (!result.ok) {
+      const code = result.error && result.error.code;
+      if (code === 'INVALID_PIN') fail('번호가 맞지 않아요.');
+      else if (code === 'INVALID_REQUEST') fail('Apps Script를 새 버전으로 배포해야 짝을 저장할 수 있어요.');
+      else fail('저장하지 못했어요. 잠시 후 다시 눌러 주세요.');
+      return;
+    }
+    teacherPin = pin;
+    teacherPairs = result.pairs || {};
+    pairDraft = null;
+    render();
+    showToast(`${classNo}반 짝을 저장했어요. 학생 크롬북은 새로고침하면 바뀌어요.`);
+  }
   function renderTeacher() {
     if (!teacherUnlocked) { renderLock(); return; }
     const list = students.filter((s) => Number(s.class) === state.classNo);
@@ -810,6 +926,7 @@
           <div class="row"><select id="reset-class" aria-label="지울 반">${classes().map((c) => `<option value="${c}"${c === state.classNo ? ' selected' : ''}>${c}반만</option>`).join('')}<option value="all">모든 반</option></select><input id="reset-pin" type="password" inputmode="numeric" maxlength="12" aria-label="선생님 번호" placeholder="선생님 번호"><button type="submit" class="primary danger">정말 지우기</button><button type="button" class="ghost" data-action="reset-close">취소</button></div>
           <p class="pin-error" id="reset-error" hidden></p>
         </form></section>
+      ${pairCardHtml()}
       <section class="tablebox"><table><thead><tr><th>번호</th><th>이름</th><th>조</th><th>기준</th><th>최고(재측정)</th><th>변화</th><th>집중 전략</th><th>목표</th><th>상태</th><th>자신감 전→후</th><th>자기효능감 정의 (전 / 후)</th><th>성찰</th></tr></thead><tbody>
       ${rows.map(({ s, r }) => {
         const base = r ? baseOf(r) : null, best = r ? bestReOf(r) : null, strat = r ? stratOf(r.focus) : null;
@@ -972,6 +1089,15 @@
         break;
       case 'reset-open': $('reset-form').hidden = false; $('reset-pin').focus(); break;
       case 'reset-close': $('reset-form').hidden = true; break;
+      case 'pair-edit': pairDraft = { classNo: state.classNo, labels: currentPairLabels(state.classNo) }; render(); break;
+      case 'pair-cancel': pairDraft = null; render(); break;
+      case 'pair-auto': {
+        const labels = {};
+        autoGroups(state.classNo).forEach((g, i) => g.forEach((s) => { labels[s.student_id] = String(i + 1); }));
+        pairDraft = { classNo: state.classNo, labels };
+        render();
+        break;
+      }
       case 'lock-teacher':
         teacherUnlocked = false;
         try { sessionStorage.removeItem(TEACHER_UNLOCK_KEY); } catch (error) { /* 무시 */ }
@@ -984,11 +1110,13 @@
   });
   document.addEventListener('submit', async (event) => {
     if (event.target.id === 'reset-form') { event.preventDefault(); resetAll(); return; }
+    if (event.target.id === 'pair-form') { event.preventDefault(); savePairs(); return; }
     if (event.target.id !== 'pin-form') return;
     event.preventDefault();
     const pin = $('pin-input').value.trim();
     if (pin && await sha256(pin) === TEACHER_PIN_SHA256) {
       teacherUnlocked = true;
+      teacherPin = pin;
       try { sessionStorage.setItem(TEACHER_UNLOCK_KEY, '1'); } catch (error) { /* 무시 */ }
       render();
     } else {
@@ -996,6 +1124,12 @@
       $('pin-input').value = '';
       $('pin-input').focus();
     }
+  });
+  document.addEventListener('input', (event) => {
+    const id = event.target.dataset && event.target.dataset.pairFor;
+    if (!id || !pairDraft) return;
+    pairDraft.labels[id] = event.target.value.trim();
+    $('pair-preview').innerHTML = pairPreviewHtml(pairDraft.classNo, pairDraft.labels);
   });
   document.addEventListener('change', (event) => {
     if (event.target.matches('[data-partner]') && state.studentId) {
@@ -1052,6 +1186,7 @@
     const result = await response.json();
     if (!result.ok) throw new Error('학생 명단을 불러오지 못했습니다.');
     applyReset(result.reset_at);
+    if (result.pairs && typeof result.pairs === 'object') teacherPairs = result.pairs;
     const list = result.data.map((row) => ({
       student_id: String(row.student_id), grade: Number(row.grade), class: Number(row.class),
       number: Number(row.number), name: String(row.name), group_or_team: String(row.group_or_team)
