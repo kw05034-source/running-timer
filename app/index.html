@@ -438,7 +438,7 @@
     </div>
     <div class="course-pick" id="course-pick" hidden>
       <div class="course-grid">
-        <button type="button" class="course" id="course-bus">🚌 301번 버스<small>20m 왕복 · 20초</small></button>
+        <button type="button" class="course" id="course-bus">🚌 301번 버스<small>20m 왕복 · <span data-t>10</span>초</small></button>
         <a class="course" href="./warmup/zigzag.html">🏫 지그재그<small>콘 4개 Z자 · 20초</small></a>
         <a class="course" href="./warmup/relay.html">🏃 이어달리기<small>4명 × 40m · 팀 대결</small></a>
       </div>
@@ -838,9 +838,11 @@
   /* ================= STOPWATCH ================= */
   // 거리(m)·목표 시간(초)은 아래 두 값만 바꾸면 페이지 안의 모든 표시가 자동으로 맞춰집니다.
   const DISTANCE_M = 20;    // 왕복 구간 거리(m) — 여기 숫자만 바꾸세요
-  const TARGET_SEC = 20;    // 목표 시간(초) — 여기 숫자만 바꾸세요
+  // 주소 끝에 ?t=9 처럼 붙이면 그 수업에서만 목표 시간을 바꿀 수 있어요 (예: index.html?t=9#warmup).
+  const T_PARAM = Number(new URLSearchParams(location.search).get('t'));
+  const TARGET_SEC = T_PARAM >= 3 && T_PARAM <= 120 ? T_PARAM : 10;    // 기본 목표 시간(초) — 여기 숫자만 바꾸세요
+  document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = TARGET_SEC; });
   document.querySelectorAll('#warmup-page [data-d]').forEach((el) => { el.textContent = DISTANCE_M; });
-  document.querySelectorAll('#warmup-page [data-t]').forEach((el) => { el.textContent = TARGET_SEC; });
   const TARGET_MS = TARGET_SEC * 1000;
   let running = false, failed = false, succeeded = false, base = 0, mark = 0, raf = 0, laps = [];
 
