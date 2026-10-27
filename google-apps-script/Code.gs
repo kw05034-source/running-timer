@@ -60,7 +60,7 @@ var GROWTH_HEADERS = [
 ];
 var GROWTH_FOCUS_VALUES = ['', 'start', 'turn', 'finish'];
 
-var AVAILABLE_ACTIONS = ['students', 'records', 'growth', 'health'];
+var AVAILABLE_ACTIONS = ['students', 'records', 'growth', 'speed_confidence', 'health'];
 
 // 전체 초기화: 선생님 화면의 번호(성장판과 같은 번호)를 SHA-256으로 비교합니다.
 var RESET_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
@@ -80,6 +80,17 @@ var GEMINI_API_KEY_PROPERTY = 'GEMINI_API_KEY';
 var GEMINI_MODEL_PROPERTY = 'GEMINI_MODEL';
 // 모델이 종료되거나 붐비면(404·503) 다음 모델로 넘어갑니다. 스크립트 속성 GEMINI_MODEL이 있으면 그 모델을 먼저 씁니다.
 var GEMINI_FALLBACK_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-flash-latest'];
+// 속력 탐구 자신감(1~10): 학생당 한 줄, 수업 전·후 점수를 덮어씁니다.
+var SPEED_CONFIDENCE_SHEET_NAME = 'SpeedConfidence';
+var SPEED_CONFIDENCE_HEADERS = [
+  'updated_at',
+  'student_id',
+  'class',
+  'number',
+  'name',
+  'confidence_before',
+  'confidence_after'
+];
 var SPEED_METHOD_LABELS = { '5x4': '5m×4왕복', '10x2': '10m×2왕복', '20x1': '20m×1왕복' };
 
 /**
@@ -120,6 +131,20 @@ function doGet(e) {
           getSpreadsheet_(),
           RECORDS_SHEET_NAME,
           RECORDS_HEADERS
+        )
+      });
+    }
+
+    if (action === 'speed_confidence') {
+      var confidenceSpreadsheet = getSpreadsheet_();
+      getOrCreateSpeedConfidenceSheet_(confidenceSpreadsheet);
+      return jsonResponse_({
+        ok: true,
+        action: action,
+        data: readSheetRows_(
+          confidenceSpreadsheet,
+          SPEED_CONFIDENCE_SHEET_NAME,
+          SPEED_CONFIDENCE_HEADERS
         )
       });
     }
@@ -178,6 +203,9 @@ function doPost(e) {
     }
     if (request && typeof request === 'object' && request.type === 'speed_class') {
       return speedClass_(request);
+    }
+    if (request && typeof request === 'object' && request.type === 'speed_confidence') {
+      return saveSpeedConfidence_(request);
     }
     validateRequestShape_(request);
     var inputRecord = normalizeRecordInput_(request.record);
@@ -1211,4 +1239,58 @@ function ruleSpeedClass_(avg) {
       '오래달리기도 걷다 뛰다 하면 매번 다시 가속해야 하니, 끝까지 유지할 수 있는 꾸준한 페이스가 유리해요.';
   }
   return '세 가지 방식 기록이 더 모이면 비교할 수 있어요.';
+}
+
+// ---- 속력 탐구 자신감 (1~10) ----
+
+function getOrCreateSpeedConfidenceSheet_(spreadsheet) {
+  var sheet = spreadsheet.getSheetByName(SPEED_CONFIDENCE_SHEET_NAME);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(SPEED_CONFIDENCE_SHEET_NAME);
+    sheet.getRange(1, 1, 1, SPEED_CONFIDENCE_HEADERS.length).setValues([SPEED_CONFIDENCE_HEADERS]);
+    sheet.setFrozenRows(1);
+    return sheet;
+  }
+  return getValidatedSheet_(spreadsheet, SPEED_CONFIDENCE_SHEET_NAME, SPEED_CONFIDENCE_HEADERS);
+}
+
+function saveSpeedConfidence_(request) {
+  var studentId = normalizeRequiredText_(request.student_id, 'student_id');
+  if (request.phase !== 'before' && request.phase !== 'after') {
+    throwAppError_('INVALID_PHASE', 'phase는 before 또는 after여야 합니다.', 400);
+  }
+  var value = Number(request.value);
+  if (!(value >= 1 && value <= 10 && Math.floor(value) === value)) {
+    throwAppError_('INVALID_CONFIDENCE', '자신감은 1~10 사이의 정수여야 합니다.', 400);
+  }
+  var spreadsheet = getSpreadsheet_();
+  var studentsSheet = getValidatedSheet_(spreadsheet, STUDENTS_SHEET_NAME, STUDENTS_HEADERS);
+  var student = findStudentById_(studentsSheet, studentId);
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throwAppError_('LOCK_TIMEOUT', '동시 저장이 많아 잠금을 획득하지 못했습니다. 잠시 후 다시 시도하세요.', 503);
+  }
+  try {
+    var sheet = getOrCreateSpeedConfidenceSheet_(spreadsheet);
+    var lastRow = sheet.getLastRow();
+    var ids = lastRow > 1 ? sheet.getRange(2, 2, lastRow - 1, 1).getValues() : [];
+    var rowIndex = -1;
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(student.student_id)) { rowIndex = i + 2; break; }
+    }
+    var row = rowIndex > 0
+      ? sheet.getRange(rowIndex, 1, 1, SPEED_CONFIDENCE_HEADERS.length).getValues()[0]
+      : [null, student.student_id, student['class'], student.number, student.name, '', ''];
+    row[0] = new Date();
+    row[request.phase === 'before' ? 5 : 6] = value;
+    if (rowIndex > 0) {
+      sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+    } else {
+      sheet.appendRow(row);
+    }
+    return jsonResponse_({ ok: true, student_id: student.student_id, phase: request.phase, value: value });
+  } finally {
+    lock.releaseLock();
+  }
 }

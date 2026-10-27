@@ -22,6 +22,8 @@
 
   let students = [];
   let records = [];
+  // 자신감 점수 {student_id: {before, after}} (SpeedConfidence 시트)
+  let confidence = {};
   const state = {
     screen: 'pick', classNo: null, group: '', studentId: null, method: null,
     timer: 'idle', startedAt: 0, elapsedMs: 0, timerId: null, pending: null, saving: false
@@ -109,7 +111,61 @@
     $('run-hint').textContent = state.timer === 'running' ? '도착하면 STOP(또는 Enter)!' : (state.method ? 'START(또는 Enter)를 누르면 출발이에요.' : '먼저 위에서 이번에 뛸 방식을 고르세요.');
   }
 
+  // ---- 자신감 (1~10) ----
+  // 처음 달리기 전에 한 번(before), 수업 끝에 한 번(after) 매깁니다.
+  function openConfidence(studentId, phase) {
+    const student = getStudent(studentId);
+    if (!student) return;
+    state.studentId = studentId;
+    state.confPhase = phase;
+    $('conf-title').textContent = `${student.name}, ${phase === 'before' ? '달리기 전에' : '오늘 수업을 마치며'}`;
+    $('conf-sub').textContent = phase === 'before' ? '솔직하게 골라 주세요. 수업이 끝나면 한 번 더 물어볼게요.' : '처음에 고른 점수와 비교해 볼 거예요.';
+    $('conf-buttons').innerHTML = Array.from({ length: 10 }, (_, i) => `<button type="button" data-conf="${i + 1}">${i + 1}</button>`).join('');
+    setScreen('confidence');
+  }
+
+  async function saveConfidence(value) {
+    const studentId = state.studentId;
+    const phase = state.confPhase;
+    confidence[studentId] = { ...(confidence[studentId] || {}), [phase]: value };
+    if (phase === 'before') openRun(studentId); else openResult();
+    try {
+      const res = await postJson({ type: 'speed_confidence', student_id: studentId, phase, value });
+      if (!res.ok) throw new Error(res.error?.message);
+    } catch (error) {
+      console.warn('자신감 저장 실패', error);
+      showToast('자신감 점수를 시트에 저장하지 못했어요. 이 화면에서는 그대로 보여요.');
+    }
+  }
+
+  function confidenceText(studentId) {
+    const c = confidence[studentId] || {};
+    if (!c.before) return '';
+    if (!c.after) return `자신감: 수업 전 ${c.before}점 → 수업이 끝나면 다시 매겨요`;
+    const diff = c.after - c.before;
+    return `자신감: 수업 전 ${c.before}점 → 수업 후 ${c.after}점 (${diff > 0 ? '+' : ''}${diff})`;
+  }
+
+  async function refreshConfidence() {
+    try {
+      const res = await (await fetch(`${SHEETS_ENDPOINT}?action=speed_confidence`)).json();
+      if (!res.ok || !Array.isArray(res.data)) throw new Error('자신감 응답 오류');
+      const next = {};
+      res.data.forEach((r) => {
+        const before = Number(r.confidence_before) || null;
+        const after = Number(r.confidence_after) || null;
+        next[String(r.student_id)] = { ...(before ? { before } : {}), ...(after ? { after } : {}) };
+      });
+      // 이 화면에서 방금 고른 점수가 시트보다 먼저일 수 있으니 합쳐 둡니다.
+      Object.keys(confidence).forEach((id) => { next[id] = { ...(next[id] || {}), ...confidence[id] }; });
+      confidence = next;
+    } catch (error) {
+      console.warn('자신감 점수를 불러오지 못했어요.', error);
+    }
+  }
+
   function openRun(studentId) {
+    if (!(confidence[studentId] || {}).before) { openConfidence(studentId, 'before'); return; }
     state.studentId = studentId;
     state.method = null;
     state.timer = 'idle';
@@ -224,6 +280,7 @@
     const stride = strideOf(student.student_id);
     $('result-stride').textContent = stride ? `보폭: 약 ${stride.toFixed(2)} m (20m를 ${readSteps()[student.student_id]}걸음)` : '20m×1을 뛸 때 짝이 걸음 수를 세면 보폭도 나와요.';
     $('coach-box').hidden = true;
+    $('result-conf').textContent = confidenceText(student.student_id);
     setScreen('result');
   }
 
@@ -295,6 +352,11 @@
     $('rank-body').innerHTML = sum.ranking.length
       ? sum.ranking.map((r, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(r.name)} <span class="sp-note">${escapeHtml(r.group)}</span></td><td>${r.method}</td><td class="num">${fmtSpeed(r.speed)}</td></tr>`).join('')
       : '<tr><td class="sp-note">아직 기록이 없어요.</td></tr>';
+    const scores = students.filter((s) => s.class === state.classNo).map((s) => confidence[s.student_id] || {});
+    const mean = (list) => (list.length ? (list.reduce((a, b) => a + b, 0) / list.length).toFixed(1) : null);
+    const before = mean(scores.map((c) => c.before).filter(Boolean));
+    const after = mean(scores.map((c) => c.after).filter(Boolean));
+    $('board-conf').textContent = before ? `우리 반 자신감 평균: 수업 전 ${before}점${after ? ` → 수업 후 ${after}점` : ''}` : '';
   }
 
   function openBoard() {
@@ -302,7 +364,7 @@
     $('class-ai-box').hidden = true;
     setScreen('board');
     // 다른 크롬북에서 저장한 기록도 보이도록 시트에서 다시 불러와 그립니다.
-    refreshRecords().then((ok) => { if (ok && state.screen === 'board') renderBoard(); });
+    Promise.all([refreshRecords(), refreshConfidence()]).then(([ok]) => { if (ok && state.screen === 'board') renderBoard(); });
   }
 
   async function classAi() {
@@ -368,18 +430,20 @@
     const stored = Number(localStorage.getItem(CLASS_KEY));
     state.classNo = classes.includes(stored) ? stored : classes[0];
     renderPick();
-    if (await refreshRecords()) renderPick();
+    const [ok] = await Promise.all([refreshRecords(), refreshConfidence()]);
+    if (ok) renderPick();
   }
 
   // ---- 입력 ----
   document.addEventListener('click', (event) => {
-    const t = event.target.closest('[data-class],[data-group],[data-student],[data-method],[data-action]');
+    const t = event.target.closest('[data-class],[data-group],[data-student],[data-method],[data-conf],[data-action]');
     if (!t) return;
     if (state.timer === 'running' && !t.matches('[data-action="stop"]')) { showToast('측정 중이에요. 먼저 STOP을 눌러 주세요.'); return; }
     if (t.dataset.class) { state.classNo = Number(t.dataset.class); try { localStorage.setItem(CLASS_KEY, String(state.classNo)); } catch (e) { /* 무시 */ } renderPick(); return; }
     if (t.dataset.group !== undefined && !t.dataset.action) { state.group = t.dataset.group; renderPick(); return; }
     if (t.dataset.student) { openRun(t.dataset.student); return; }
     if (t.dataset.method) { state.method = t.dataset.method; renderRun(); return; }
+    if (t.dataset.conf) { saveConfidence(Number(t.dataset.conf)); return; }
     const action = t.dataset.action;
     if (action === 'start') start();
     else if (action === 'stop') stop();
@@ -387,6 +451,7 @@
     else if (action === 'cancel') { state.timer = 'idle'; state.elapsedMs = 0; state.pending = null; setScreen('run'); renderRun(); showToast('저장하지 않았어요.'); }
     else if (action === 'open-result') openResult();
     else if (action === 'back-run') openRun(state.studentId);
+    else if (action === 'conf-after') openConfidence(state.studentId, 'after');
     else if (action === 'coach') coach();
     else if (action === 'go-pick') { setScreen('pick'); renderPick(); }
     else if (action === 'go-board') openBoard();
