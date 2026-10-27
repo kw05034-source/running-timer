@@ -78,7 +78,8 @@ var ALLOWED_ACTIVITY_TYPES = ['obstacle_run'].concat(SPEED_ACTIVITY_TYPES);
 // AI 코칭: 스크립트 속성 GEMINI_API_KEY가 있으면 Gemini로, 없거나 실패하면 규칙 기반 코칭으로 답합니다.
 var GEMINI_API_KEY_PROPERTY = 'GEMINI_API_KEY';
 var GEMINI_MODEL_PROPERTY = 'GEMINI_MODEL';
-var GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash';
+// 모델이 종료되거나 붐비면(404·503) 다음 모델로 넘어갑니다. 스크립트 속성 GEMINI_MODEL이 있으면 그 모델을 먼저 씁니다.
+var GEMINI_FALLBACK_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-flash-latest'];
 var SPEED_METHOD_LABELS = { '5x4': '5m×4왕복', '10x2': '10m×2왕복', '20x1': '20m×1왕복' };
 
 /**
@@ -1147,7 +1148,18 @@ function callGemini_(prompt) {
   var props = PropertiesService.getScriptProperties();
   var apiKey = props.getProperty(GEMINI_API_KEY_PROPERTY);
   if (!apiKey) return '';
-  var model = props.getProperty(GEMINI_MODEL_PROPERTY) || GEMINI_DEFAULT_MODEL;
+  var preferred = props.getProperty(GEMINI_MODEL_PROPERTY);
+  var models = (preferred ? [preferred] : []).concat(GEMINI_FALLBACK_MODELS.filter(function (model) {
+    return model !== preferred;
+  }));
+  for (var i = 0; i < models.length; i++) {
+    var text = callGeminiModel_(apiKey, models[i], prompt);
+    if (text) return text;
+  }
+  return '';
+}
+
+function callGeminiModel_(apiKey, model, prompt) {
   try {
     var response = UrlFetchApp.fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent',
@@ -1158,20 +1170,24 @@ function callGemini_(prompt) {
         muteHttpExceptions: true,
         payload: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.4, maxOutputTokens: 300 }
+          // 생각하는 모델은 출력 한도 안에서 생각에도 토큰을 쓰므로 넉넉하게 둡니다.
+          generationConfig: { temperature: 0.4, maxOutputTokens: 1024 }
         })
       }
     );
     if (response.getResponseCode() !== 200) {
-      console.warn('Gemini 응답 오류: ' + response.getResponseCode() + ' ' + response.getContentText().slice(0, 300));
+      console.warn('Gemini(' + model + ') 응답 오류: ' + response.getResponseCode() + ' ' + response.getContentText().slice(0, 300));
       return '';
     }
     var data = JSON.parse(response.getContentText());
-    var parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+    var candidate = data && data.candidates && data.candidates[0];
+    // 답이 중간에 끊긴 경우(MAX_TOKENS 등)는 쓰지 않고 다음 모델로 넘어갑니다.
+    if (!candidate || candidate.finishReason !== 'STOP') return '';
+    var parts = candidate.content && candidate.content.parts;
     var text = (parts || []).map(function (part) { return part.text || ''; }).join('').trim();
     return text.slice(0, 400);
   } catch (error) {
-    console.warn('Gemini 호출 실패: ' + error);
+    console.warn('Gemini(' + model + ') 호출 실패: ' + error);
     return '';
   }
 }
