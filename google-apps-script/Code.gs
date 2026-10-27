@@ -72,6 +72,15 @@ var RESET_CLASSES_PROPERTY = 'RESET_AT_BY_CLASS';
 var PAIRS_PROPERTY = 'PAIRS';
 var RECORD_ID_PROPERTY_PREFIX = 'record_id_hash:';
 
+// 속력 탐구(같은 40m를 5m×4, 10m×2, 20m×1 왕복)는 Records 시트에 activity_type으로 구분해 저장합니다.
+var SPEED_ACTIVITY_TYPES = ['speed_5x4', 'speed_10x2', 'speed_20x1'];
+var ALLOWED_ACTIVITY_TYPES = ['obstacle_run'].concat(SPEED_ACTIVITY_TYPES);
+// AI 코칭: 스크립트 속성 GEMINI_API_KEY가 있으면 Gemini로, 없거나 실패하면 규칙 기반 코칭으로 답합니다.
+var GEMINI_API_KEY_PROPERTY = 'GEMINI_API_KEY';
+var GEMINI_MODEL_PROPERTY = 'GEMINI_MODEL';
+var GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash';
+var SPEED_METHOD_LABELS = { '5x4': '5m×4왕복', '10x2': '10m×2왕복', '20x1': '20m×1왕복' };
+
 /**
  * GET /exec?action=students|records|growth|health
  */
@@ -162,6 +171,12 @@ function doPost(e) {
     }
     if (request && typeof request === 'object' && request.type === 'pairs') {
       return savePairs_(request);
+    }
+    if (request && typeof request === 'object' && request.type === 'speed_coach') {
+      return speedCoach_(request);
+    }
+    if (request && typeof request === 'object' && request.type === 'speed_class') {
+      return speedClass_(request);
     }
     validateRequestShape_(request);
     var inputRecord = normalizeRecordInput_(request.record);
@@ -445,11 +460,11 @@ function normalizeRecordInput_(record) {
     'record_seconds'
   );
 
-  if (typeof record.activity_type !== 'string' ||
-      record.activity_type.trim() !== 'obstacle_run') {
+  var activityType = typeof record.activity_type === 'string' ? record.activity_type.trim() : '';
+  if (ALLOWED_ACTIVITY_TYPES.indexOf(activityType) === -1) {
     throwAppError_(
       'INVALID_ACTIVITY_TYPE',
-      'activity_type은 "obstacle_run"이어야 합니다.',
+      'activity_type은 ' + ALLOWED_ACTIVITY_TYPES.join(', ') + ' 중 하나여야 합니다.',
       400
     );
   }
@@ -471,7 +486,7 @@ function normalizeRecordInput_(record) {
     student_id: studentId,
     attempt_no: attemptNo,
     record_seconds: recordSeconds,
-    activity_type: 'obstacle_run',
+    activity_type: activityType,
     record_id: recordId
   };
 }
@@ -1069,4 +1084,115 @@ function normalizeOptionalText_(value, maxLength) {
     text = "'" + text;
   }
   return text.slice(0, maxLength);
+}
+
+// ---- 속력 탐구 AI 코칭 ----
+// 학생 이름은 받지 않고, 방식별 평균속력(m/s)과 보폭(m) 숫자만 받습니다.
+
+function normalizeSpeeds_(value) {
+  var speeds = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return speeds;
+  Object.keys(SPEED_METHOD_LABELS).forEach(function (key) {
+    var v = Number(value[key]);
+    if (isFinite(v) && v > 0 && v < 15) speeds[key] = Math.round(v * 100) / 100;
+  });
+  return speeds;
+}
+
+function speedCoach_(request) {
+  var speeds = normalizeSpeeds_(request.speeds);
+  var stride = Number(request.stride);
+  stride = isFinite(stride) && stride > 0.3 && stride < 3 ? Math.round(stride * 100) / 100 : null;
+  if (!Object.keys(speeds).length) {
+    throwAppError_('INVALID_SPEEDS', '평균속력 값이 없습니다.', 400);
+  }
+  var lines = Object.keys(speeds).map(function (key) {
+    return SPEED_METHOD_LABELS[key] + ': ' + speeds[key] + ' m/s';
+  });
+  if (stride) lines.push('20m 구간 평균 보폭: ' + stride + ' m');
+  var prompt = [
+    '너는 중학교 2학년 체육 수업의 달리기 코치야.',
+    '학생이 같은 40m를 세 가지 왕복 방식으로 달린 평균속력이야. 방향 전환 횟수는 5m×4왕복 7번, 10m×2왕복 3번, 20m×1왕복 1번이야.',
+    lines.join('\n'),
+    '규칙: 한국어 두 문장 이내, 80자 안팎. 첫 문장은 숫자를 근거로 잘한 점 하나, 둘째 문장은 다음에 바꿀 점 하나.',
+    '바꿀 점은 출발 자세, 방향 전환 자세, 보폭과 보수 중에서만 골라. "속도", "변위", "가속도"라는 말은 쓰지 말고 "속력", "가속", "감속"만 써.'
+  ].join('\n');
+  var ai = callGemini_(prompt);
+  return jsonResponse_({ ok: true, text: ai || ruleSpeedCoach_(speeds, stride), source: ai ? 'ai' : 'rule' });
+}
+
+function speedClass_(request) {
+  var summary = request.summary && typeof request.summary === 'object' ? request.summary : {};
+  var avg = normalizeSpeeds_(summary.avg);
+  var runners = Math.max(0, Math.min(200, Math.floor(Number(summary.runners) || 0)));
+  if (!Object.keys(avg).length) {
+    throwAppError_('INVALID_SPEEDS', '반 평균속력 값이 없습니다.', 400);
+  }
+  var lines = Object.keys(avg).map(function (key) {
+    return SPEED_METHOD_LABELS[key] + ' 반 평균: ' + avg[key] + ' m/s';
+  });
+  var prompt = [
+    '너는 중학교 2학년 체육 수업의 달리기 코치야. 반 학생 ' + runners + '명이 같은 40m를 세 가지 왕복 방식으로 달렸어.',
+    '방향 전환 횟수는 5m×4왕복 7번, 10m×2왕복 3번, 20m×1왕복 1번이야.',
+    lines.join('\n'),
+    '규칙: 한국어 세 문장 이내. 숫자로 어떤 방식이 가장 빨랐는지와 그 이유(방향 전환 때 감속과 다시 가속)를 설명하고,',
+    '마지막 문장은 오래달리기에서는 걷다 뛰다 하기보다 끝까지 유지할 수 있는 꾸준한 페이스가 유리하다는 것과 연결해.',
+    '"속도", "변위", "가속도"라는 말은 쓰지 말고 "속력", "가속", "감속"만 써.'
+  ].join('\n');
+  var ai = callGemini_(prompt);
+  return jsonResponse_({ ok: true, text: ai || ruleSpeedClass_(avg), source: ai ? 'ai' : 'rule' });
+}
+
+function callGemini_(prompt) {
+  var props = PropertiesService.getScriptProperties();
+  var apiKey = props.getProperty(GEMINI_API_KEY_PROPERTY);
+  if (!apiKey) return '';
+  var model = props.getProperty(GEMINI_MODEL_PROPERTY) || GEMINI_DEFAULT_MODEL;
+  try {
+    var response = UrlFetchApp.fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent',
+      {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { 'x-goog-api-key': apiKey },
+        muteHttpExceptions: true,
+        payload: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.4, maxOutputTokens: 300 }
+        })
+      }
+    );
+    if (response.getResponseCode() !== 200) {
+      console.warn('Gemini 응답 오류: ' + response.getResponseCode() + ' ' + response.getContentText().slice(0, 300));
+      return '';
+    }
+    var data = JSON.parse(response.getContentText());
+    var parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+    var text = (parts || []).map(function (part) { return part.text || ''; }).join('').trim();
+    return text.slice(0, 400);
+  } catch (error) {
+    console.warn('Gemini 호출 실패: ' + error);
+    return '';
+  }
+}
+
+function ruleSpeedCoach_(speeds, stride) {
+  if (speeds['20x1'] && speeds['5x4']) {
+    var loss = Math.round((1 - speeds['5x4'] / speeds['20x1']) * 100);
+    if (loss >= 20) {
+      return '5m 왕복에서 속력이 ' + loss + '% 떨어졌어요. 방향을 바꾸기 2~3걸음 전부터 보폭을 줄이고 자세를 낮춰 보세요.';
+    }
+    return '방향 전환이 많아도 속력을 잘 지켰어요(차이 ' + loss + '%). 이번엔 출발할 때 몸을 낮추고 짧고 빠른 걸음으로 시작해 보세요.' +
+      (stride ? ' (지금 보폭 약 ' + stride + 'm)' : '');
+  }
+  return '세 가지 방식을 모두 달려 보면 어디에서 속력을 잃는지 비교할 수 있어요.';
+}
+
+function ruleSpeedClass_(avg) {
+  if (avg['20x1'] && avg['5x4']) {
+    var loss = Math.round((1 - avg['5x4'] / avg['20x1']) * 100);
+    return '우리 반은 5m×4왕복이 20m×1왕복보다 평균속력이 ' + loss + '% 느렸어요. 방향을 바꿀 때마다 감속했다가 다시 가속하느라 시간이 들기 때문이에요. ' +
+      '오래달리기도 걷다 뛰다 하면 매번 다시 가속해야 하니, 끝까지 유지할 수 있는 꾸준한 페이스가 유리해요.';
+  }
+  return '세 가지 방식 기록이 더 모이면 비교할 수 있어요.';
 }

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>속력 탐구 · 움직임 기록</title>
+<link rel="stylesheet" href="./styles.css">
+<style>
+  /* 속력 탐구 화면 전용 스타일. styles.css의 색 변수를 그대로 씁니다. */
+  .sp-main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 36px 0 70px; }
+  .sp-title { margin: 0 0 6px; color: var(--navy-900); font-size: clamp(28px, 4vw, 42px); font-weight: 800; letter-spacing: -0.05em; }
+  .sp-sub { margin: 0 0 22px; color: var(--muted); font-size: 16px; }
+  .sp-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .sp-tab { border: 0; border-radius: 999px; padding: 10px 18px; background: #e5eaf2; color: var(--ink); font-weight: 800; font-size: 15px; }
+  .sp-tab.is-selected { background: var(--navy-900); color: #fff; }
+  .sp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+  .sp-card { border: 0; text-align: left; padding: 18px; border-radius: var(--radius-md); background: var(--paper); box-shadow: var(--shadow); }
+  .sp-card h3 { margin: 0 0 4px; font-size: 20px; color: var(--navy-900); }
+  .sp-card .meta { color: var(--muted); font-size: 13px; }
+  .sp-dots { display: flex; gap: 6px; margin-top: 12px; }
+  .sp-dot { flex: 1; text-align: center; font-size: 12px; font-weight: 800; padding: 6px 0; border-radius: 8px; background: #eef2f7; color: var(--muted); }
+  .sp-dot.is-done { background: var(--mint-100); color: #0b7a5c; }
+  .sp-methods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 18px 0; }
+  .sp-method { border: 3px solid transparent; border-radius: var(--radius-md); padding: 22px 12px; background: var(--paper); box-shadow: var(--shadow); font-size: 24px; font-weight: 800; color: var(--navy-900); }
+  .sp-method small { display: block; margin-top: 6px; font-size: 14px; color: var(--muted); font-weight: 600; }
+  .sp-method.is-selected { border-color: var(--orange-500); background: var(--orange-100); }
+  .sp-method .check { color: #0b7a5c; }
+  .sp-timer { text-align: center; padding: 30px 16px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow); }
+  .sp-digits { font-size: clamp(64px, 12vw, 120px); font-weight: 800; letter-spacing: -0.04em; color: var(--navy-900); font-variant-numeric: tabular-nums; }
+  .sp-digits small { font-size: 0.35em; margin-left: 6px; color: var(--muted); }
+  .sp-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 18px; }
+  .sp-btn { border: 0; border-radius: 999px; padding: 16px 30px; font-size: 20px; font-weight: 800; background: var(--navy-900); color: #fff; }
+  .sp-btn.go { background: #16a34a; }
+  .sp-btn.stop { background: #e03131; }
+  .sp-btn.ghost { background: #e5eaf2; color: var(--ink); }
+  .sp-btn.ai { background: #7048e8; }
+  .sp-btn:disabled { opacity: 0.4; }
+  .sp-speed { margin-top: 10px; font-size: 26px; font-weight: 800; color: var(--orange-500); }
+  .sp-steps { margin-top: 16px; font-size: 17px; }
+  .sp-steps input { width: 90px; font: inherit; font-size: 22px; padding: 8px; border-radius: 10px; border: 2px solid var(--line); text-align: center; }
+  .sp-bars { display: grid; gap: 12px; margin: 18px 0; }
+  .sp-bar { display: grid; grid-template-columns: 90px 1fr 110px; align-items: center; gap: 12px; font-weight: 800; }
+  .sp-bar .track { height: 26px; border-radius: 8px; background: #eef2f7; overflow: hidden; }
+  .sp-bar .fill { height: 100%; border-radius: 8px; background: var(--blue-500); }
+  .sp-bar.best .fill { background: var(--orange-500); }
+  .sp-bar .val { text-align: right; font-variant-numeric: tabular-nums; }
+  .sp-panel { padding: 22px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow); margin-bottom: 18px; }
+  .sp-panel h2 { margin: 0 0 8px; font-size: 22px; color: var(--navy-900); }
+  .sp-coach { margin-top: 14px; padding: 16px 18px; border-radius: var(--radius-md); background: #efedff; color: #2b1d6b; font-size: 18px; line-height: 1.55; font-weight: 600; }
+  .sp-coach .src { display: block; margin-top: 6px; font-size: 12px; color: #6a5fb0; font-weight: 500; }
+  .sp-rank { width: 100%; border-collapse: collapse; font-size: 17px; }
+  .sp-rank td, .sp-rank th { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+  .sp-rank td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 800; }
+  .sp-note { color: var(--muted); font-size: 14px; }
+  .sp-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 14px 20px; border-radius: 14px; background: var(--navy-900); color: #fff; font-weight: 700; z-index: 10; }
+  @media (max-width: 640px) { .sp-methods { grid-template-columns: 1fr; } .sp-bar { grid-template-columns: 70px 1fr 90px; } }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="app-header">
+    <a class="brand" href="./index.html" aria-label="처음 화면으로">
+      <span class="brand-mark" aria-hidden="true">⚡</span>
+      <span><span class="brand-name">속력 탐구</span><span class="brand-context">같은 40m, 어떻게 달려야 가장 빠를까?</span></span>
+    </a>
+    <div style="display:flex; gap:10px;">
+      <button type="button" class="sp-tab" data-action="go-pick">👟 학생 선택</button>
+      <button type="button" class="sp-tab" data-action="go-board">📊 우리 반 현황</button>
+    </div>
+  </header>
+
+  <main class="sp-main">
+    <!-- 1. 학생 선택 -->
+    <section data-screen="pick">
+      <h1 class="sp-title">누가 달릴까요?</h1>
+      <p class="sp-sub">세 가지 방식(5m×4 · 10m×2 · 20m×1)을 모두 달려 보세요. 다 뛴 방식에는 ✓가 붙어요.</p>
+      <div class="sp-tabs" id="class-tabs"></div>
+      <div class="sp-tabs" id="group-tabs"></div>
+      <p class="sp-note" id="pick-empty">학생 명단을 불러오는 중이에요...</p>
+      <div class="sp-grid" id="students-grid"></div>
+    </section>
+
+    <!-- 2. 방식 고르고 측정 -->
+    <section data-screen="run" hidden>
+      <h1 class="sp-title" id="run-name"></h1>
+      <p class="sp-sub">이번에 뛸 방식을 먼저 고르세요. 모두 40m예요.</p>
+      <div class="sp-methods" id="methods"></div>
+      <div class="sp-timer">
+        <div class="sp-digits" id="digits">0.00<small>초</small></div>
+        <div class="sp-actions">
+          <button type="button" class="sp-btn go" id="start-btn" data-action="start">START</button>
+          <button type="button" class="sp-btn stop" id="stop-btn" data-action="stop" disabled>STOP</button>
+        </div>
+        <p class="sp-note" id="run-hint">방식을 고르고 START(또는 Enter)를 누르세요.</p>
+      </div>
+      <div class="sp-actions">
+        <button type="button" class="sp-btn ghost" data-action="open-result">내 결과 보기</button>
+        <button type="button" class="sp-btn ghost" data-action="go-pick">← 학생 선택</button>
+      </div>
+    </section>
+
+    <!-- 3. 저장 확인 -->
+    <section data-screen="confirm" hidden>
+      <div class="sp-timer">
+        <p class="sp-sub" id="confirm-who"></p>
+        <div class="sp-digits" id="confirm-time"></div>
+        <div class="sp-speed" id="confirm-speed"></div>
+        <div class="sp-steps" id="steps-box" hidden>
+          짝이 센 걸음 수 (갈 때 20m): <input type="number" id="steps-input" min="5" max="60" inputmode="numeric"> 걸음
+          <div class="sp-note" id="stride-preview">걸음 수를 넣으면 보폭이 계산돼요.</div>
+        </div>
+        <div class="sp-actions">
+          <button type="button" class="sp-btn" id="save-btn" data-action="save">저장하기</button>
+          <button type="button" class="sp-btn ghost" data-action="cancel">취소</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 내 결과와 AI 코칭 -->
+    <section data-screen="result" hidden>
+      <h1 class="sp-title" id="result-name"></h1>
+      <div class="sp-panel">
+        <h2>방식별 평균속력 (가장 빠른 기록)</h2>
+        <div class="sp-bars" id="result-bars"></div>
+        <p class="sp-note" id="result-stride"></p>
+        <div class="sp-actions" style="justify-content:flex-start">
+          <button type="button" class="sp-btn ai" id="coach-btn" data-action="coach">🤖 AI 한 줄 코칭</button>
+        </div>
+        <div class="sp-coach" id="coach-box" hidden></div>
+      </div>
+      <div class="sp-actions" style="justify-content:flex-start">
+        <button type="button" class="sp-btn" data-action="back-run">다시 달리기</button>
+        <button type="button" class="sp-btn ghost" data-action="go-pick">← 학생 선택</button>
+      </div>
+    </section>
+
+    <!-- 5. 우리 반 현황 -->
+    <section data-screen="board" hidden>
+      <h1 class="sp-title" id="board-title">우리 반 현황</h1>
+      <p class="sp-sub">모두 같은 40m예요. 방향을 바꾸는 횟수만 달라요.</p>
+      <div class="sp-panel">
+        <h2>방식별 우리 반 평균속력</h2>
+        <div class="sp-bars" id="board-bars"></div>
+        <div class="sp-actions" style="justify-content:flex-start">
+          <button type="button" class="sp-btn ai" id="class-ai-btn" data-action="class-ai">🤖 AI 반 전체 분석</button>
+        </div>
+        <div class="sp-coach" id="class-ai-box" hidden></div>
+      </div>
+      <div class="sp-panel">
+        <h2>평균속력 랭킹</h2>
+        <p class="sp-note">학생마다 가장 빠른 평균속력(어느 방식이든)으로 순위를 매겨요.</p>
+        <table class="sp-rank"><tbody id="rank-body"></tbody></table>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="sp-toast" id="toast" hidden></div>
+<script src="./beep.js"></script>
+<script src="./speed.js"></script>
+</body>
+</html>
