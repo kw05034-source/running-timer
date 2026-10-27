@@ -52,6 +52,12 @@
   .sp-rank td, .sp-rank th { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; }
   .sp-rank td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 800; }
   .sp-note { color: var(--muted); font-size: 14px; }
+  .sp-conf { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; margin: 22px 0; }
+  .sp-conf button { border: 0; border-radius: 14px; padding: 22px 0; font-size: 26px; font-weight: 800; background: var(--paper); color: var(--navy-900); box-shadow: var(--shadow); }
+  .sp-conf button:hover { background: var(--orange-100); }
+  .sp-conf-scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 14px; }
+  .sp-conf-line { margin: 14px 0 0; font-size: 18px; font-weight: 800; color: var(--navy-900); }
+  @media (max-width: 640px) { .sp-conf { grid-template-columns: repeat(5, 1fr); } }
   .sp-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 14px 20px; border-radius: 14px; background: var(--navy-900); color: #fff; font-weight: 700; z-index: 10; }
   @media (max-width: 640px) { .sp-methods { grid-template-columns: 1fr; } .sp-bar { grid-template-columns: 70px 1fr 90px; } }
 </style>
@@ -78,6 +84,17 @@
       <div class="sp-tabs" id="group-tabs"></div>
       <p class="sp-note" id="pick-empty">학생 명단을 불러오는 중이에요...</p>
       <div class="sp-grid" id="students-grid"></div>
+    </section>
+
+    <!-- 1-1. 자신감 (수업 전·후, 1~10) -->
+    <section data-screen="confidence" hidden>
+      <h1 class="sp-title" id="conf-title"></h1>
+      <p class="sp-sub" id="conf-sub"></p>
+      <div class="sp-panel">
+        <h2>내 평균속력을 높일 수 있다는 자신감은 몇 점인가요?</h2>
+        <div class="sp-conf" id="conf-buttons"></div>
+        <div class="sp-conf-scale"><span>1 전혀 자신 없어요</span><span>10 아주 자신 있어요</span></div>
+      </div>
     </section>
 
     <!-- 2. 방식 고르고 측정 -->
@@ -127,9 +144,11 @@
           <button type="button" class="sp-btn ai" id="coach-btn" data-action="coach">🤖 AI 한 줄 코칭</button>
         </div>
         <div class="sp-coach" id="coach-box" hidden></div>
+        <p class="sp-conf-line" id="result-conf"></p>
       </div>
       <div class="sp-actions" style="justify-content:flex-start">
         <button type="button" class="sp-btn" data-action="back-run">다시 달리기</button>
+        <button type="button" class="sp-btn ghost" data-action="conf-after">🏁 수업 끝 자신감 매기기</button>
         <button type="button" class="sp-btn ghost" data-action="go-pick">← 학생 선택</button>
       </div>
     </section>
@@ -145,6 +164,7 @@
           <button type="button" class="sp-btn ai" id="class-ai-btn" data-action="class-ai">🤖 AI 반 전체 분석</button>
         </div>
         <div class="sp-coach" id="class-ai-box" hidden></div>
+        <p class="sp-conf-line" id="board-conf"></p>
       </div>
       <div class="sp-panel">
         <h2>평균속력 랭킹</h2>
