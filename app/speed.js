@@ -79,19 +79,33 @@
   }
   function renderPick() {
     const classes = [...new Set(students.map((s) => s.class))].sort((a, b) => a - b);
-    $('class-tabs').innerHTML = classes.map((c) => `<button type="button" class="sp-tab${c === state.classNo ? ' is-selected' : ''}" data-class="${c}">${c}반</button>`).join('');
+    $('class-tabs').innerHTML = classes.map((c) => `<button type="button" class="class-tab${c === state.classNo ? ' is-selected' : ''}" role="tab" aria-selected="${c === state.classNo}" data-class="${c}">${c}반</button>`).join('');
     const groups = groupsOf(state.classNo);
     if (!groups.includes(state.group)) state.group = groups[0] ?? '';
-    $('group-tabs').innerHTML = groups.map((g) => `<button type="button" class="sp-tab${g === state.group ? ' is-selected' : ''}" data-group="${escapeHtml(g)}">${escapeHtml(g)}</button>`).join('');
+    $('group-tabs').innerHTML = groups.map((g) => `<button type="button" class="group-tab${g === state.group ? ' is-selected' : ''}" role="tab" aria-selected="${g === state.group}" data-group="${escapeHtml(g)}">${escapeHtml(g)}</button>`).join('');
     const list = students.filter((s) => s.class === state.classNo && s.group_or_team === state.group);
+    $('pick-class-caption').textContent = `${state.classNo}반 수업`;
+    $('pick-heading').textContent = `${state.classNo}반 ${state.group} 학생`;
+    $('pick-count').textContent = list.length;
     $('pick-empty').hidden = list.length > 0;
-    $('pick-empty').textContent = '이 조에는 학생이 없어요.';
+    $('pick-empty').querySelector('strong').textContent = '아직 이 조에 학생이 없어요.';
     $('students-grid').innerHTML = list.map((s) => {
       const best = bestSpeeds(s.student_id);
-      const dots = METHODS.map((m) => `<span class="sp-dot${best[m.key] ? ' is-done' : ''}">${best[m.key] ? '✓ ' : ''}${m.label}</span>`).join('');
-      return `<button type="button" class="sp-card" data-student="${escapeHtml(s.student_id)}">
-        <h3>${escapeHtml(s.name)}</h3><span class="meta">${escapeHtml(s.number)}번 · ${escapeHtml(s.group_or_team)}</span>
-        <div class="sp-dots">${dots}</div></button>`;
+      const top = Math.max(0, ...Object.values(best));
+      const chips = METHODS.map((m) => `<span class="method-chip${best[m.key] ? ' is-done' : ''}">${best[m.key] ? '✓ ' : ''}${m.label}</span>`).join('');
+      return `<article class="student-card">
+        <button class="student-select" type="button" data-student="${escapeHtml(s.student_id)}" aria-label="${escapeHtml(s.name)} 학생 달리기">
+          <div class="student-card-top">
+            <span class="student-avatar" aria-hidden="true">${escapeHtml(s.name.slice(0, 1))}</span>
+            <div><h3 class="student-name">${escapeHtml(s.name)}</h3><span class="student-meta">${escapeHtml(s.number)}번 · ${escapeHtml(s.group_or_team)}</span></div>
+          </div>
+          <dl class="student-stats">
+            <div class="student-stat"><dt>뛴 방식</dt><dd>${Object.keys(best).length}<small>/3</small></dd></div>
+            <div class="student-stat"><dt>최고 속력</dt><dd>${top ? top.toFixed(2) : '—'}<small>${top ? 'm/s' : ''}</small></dd></div>
+          </dl>
+          <div class="method-chips">${chips}</div>
+        </button>
+      </article>`;
     }).join('');
   }
 
@@ -100,15 +114,19 @@
     const student = getStudent(state.studentId);
     if (!student) return;
     const best = bestSpeeds(student.student_id);
-    $('run-name').textContent = `${student.name} 달리기`;
+    $('run-avatar').textContent = student.name.slice(0, 1);
+    $('run-meta').textContent = `${student.class}반 · ${student.group_or_team} · ${student.number}번`;
+    $('run-name').textContent = student.name;
     $('methods').innerHTML = METHODS.map((m) => `
-      <button type="button" class="sp-method${state.method === m.key ? ' is-selected' : ''}" data-method="${m.key}" ${state.timer === 'running' ? 'disabled' : ''}>
-        ${best[m.key] ? '<span class="check">✓</span> ' : ''}${m.label}<small>방향 전환 ${m.turns}번</small></button>`).join('');
+      <button type="button" class="method-option${state.method === m.key ? ' is-selected' : ''}" data-method="${m.key}" ${state.timer === 'running' ? 'disabled' : ''}>
+        <span><strong>${m.label}</strong> <small>방향 전환 ${m.turns}번</small></span>${best[m.key] ? `<span class="done">✓ ${fmtSpeed(best[m.key])}</span>` : ''}</button>`).join('');
     const seconds = state.timer === 'running' ? (performance.now() - state.startedAt) / 1000 : state.elapsedMs / 1000;
-    $('digits').innerHTML = `${seconds.toFixed(2)}<small>초</small>`;
+    $('digits').innerHTML = `${seconds.toFixed(2).padStart(5, '0')}<small>초</small>`;
+    $('timer-card').classList.toggle('is-running', state.timer === 'running');
+    $('timer-status-text').textContent = state.timer === 'running' ? '측정 중' : (state.method ? `${METHODS.find((m) => m.key === state.method).label} 준비` : '방식을 골라 주세요');
     $('start-btn').disabled = state.timer !== 'idle' || !state.method;
     $('stop-btn').disabled = state.timer !== 'running';
-    $('run-hint').textContent = state.timer === 'running' ? '도착하면 STOP(또는 Enter)!' : (state.method ? 'START(또는 Enter)를 누르면 출발이에요.' : '먼저 위에서 이번에 뛸 방식을 고르세요.');
+    $('run-hint').textContent = state.timer === 'running' ? '도착하면 STOP(또는 Enter)!' : (state.method ? 'START(또는 Enter)를 누르면 출발이에요.' : '먼저 이번에 뛸 방식을 고르세요.');
   }
 
   // ---- 자신감 (1~10) ----
@@ -206,9 +224,12 @@
       record_seconds: sec,
       activity_type: method.type
     };
-    $('confirm-who').textContent = `${student.name} · ${method.label} (40m)`;
+    $('confirm-avatar').textContent = student.name.slice(0, 1);
+    $('confirm-who').textContent = `${student.class}반 · ${student.group_or_team} · ${student.number}번`;
+    $('confirm-name').textContent = student.name;
+    $('confirm-method').textContent = `${method.label} (40m)`;
     $('confirm-time').innerHTML = `${sec.toFixed(2)}<small>초</small>`;
-    $('confirm-speed').textContent = `평균속력 ${fmtSpeed(speedOf(sec))}`;
+    $('confirm-speed').textContent = fmtSpeed(speedOf(sec));
     $('steps-box').hidden = method.key !== '20x1';
     $('steps-input').value = readSteps()[student.student_id] || '';
     updateStridePreview();
@@ -266,8 +287,8 @@
     const bestKey = METHODS.reduce((b, m) => ((values[m.key] || 0) > (values[b] || 0) ? m.key : b), METHODS[0].key);
     return METHODS.map((m) => {
       const v = values[m.key];
-      return `<div class="sp-bar${v && m.key === bestKey ? ' best' : ''}"><span>${m.label}</span>
-        <span class="track"><span class="fill" style="display:block;width:${v ? (v / max) * 100 : 0}%"></span></span>
+      return `<div class="bar${v && m.key === bestKey ? ' best' : ''}"><span>${m.label}</span>
+        <span class="track"><span class="fill" style="width:${v ? (v / max) * 100 : 0}%"></span></span>
         <span class="val">${v ? fmtSpeed(v) : '아직 안 뜀'}</span></div>`;
     }).join('');
   }
@@ -350,8 +371,8 @@
     $('board-title').textContent = `${state.classNo}반 현황`;
     $('board-bars').innerHTML = barsHtml(sum.avg);
     $('rank-body').innerHTML = sum.ranking.length
-      ? sum.ranking.map((r, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(r.name)} <span class="sp-note">${escapeHtml(r.group)}</span></td><td>${r.method}</td><td class="num">${fmtSpeed(r.speed)}</td></tr>`).join('')
-      : '<tr><td class="sp-note">아직 기록이 없어요.</td></tr>';
+      ? sum.ranking.map((r, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(r.name)} <span class="muted">${escapeHtml(r.group)}</span></td><td>${r.method}</td><td class="num">${fmtSpeed(r.speed)}</td></tr>`).join('')
+      : '<tr><td class="muted" colspan="4">아직 기록이 없어요.</td></tr>';
     const scores = students.filter((s) => s.class === state.classNo).map((s) => confidence[s.student_id] || {});
     const mean = (list) => (list.length ? (list.reduce((a, b) => a + b, 0) / list.length).toFixed(1) : null);
     const before = mean(scores.map((c) => c.before).filter(Boolean));
@@ -423,7 +444,7 @@
       }));
     } catch (error) {
       console.error(error);
-      $('pick-empty').textContent = '학생 명단을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.';
+      $('pick-empty').querySelector('strong').textContent = '학생 명단을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.';
       return;
     }
     const classes = [...new Set(students.map((s) => s.class))].sort((a, b) => a - b);
