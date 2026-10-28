@@ -31,20 +31,24 @@
   .stat-chip strong { color: var(--navy-900); }
   .stat-chip--key { background: #fff0e6; color: #b2541a; }
   .stat-chip--key strong { color: #b2541a; }
-  .cloud { min-height: 220px; margin-top: 18px; padding: 10px; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; align-items: center; gap: 6px 18px; }
-  .cloud span { font-weight: 800; letter-spacing: -0.04em; line-height: 1.15; color: #8a96ab; animation: pop 320ms ease both; }
-  .cloud span.g-move { color: var(--blue-500); }
-  .cloud span.g-skill { color: #0eae89; }
-  .cloud span.g-self { color: #f07b2f; }
-  .cloud span sup { margin-left: 2px; font-size: 0.45em; color: var(--muted); }
-  .cloud-empty { color: var(--muted); font-size: 15px; }
+  /* 구름: 단어마다 자리를 계산해 놓습니다 (words.js의 drawCloud) */
+  .cloud { position: relative; height: 380px; margin-top: 14px; overflow: hidden; }
+  .cloud span { position: absolute; white-space: nowrap; font-weight: 700; line-height: 1.25; letter-spacing: -0.03em; transition: color 300ms ease; }
+  .cloud span.v { writing-mode: vertical-rl; letter-spacing: 0; }
+  .cloud span.is-key { font-weight: 900; }
+  .cloud span.is-new { animation: pop 420ms ease both; }
+  .cloud-empty { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted); font-size: 15px; }
+  .cloud-tools { margin-top: 10px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+  .highlight-btn { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--navy-900); font-size: 14px; font-weight: 800; }
+  .highlight-btn.is-on { border-color: #f07b2f; background: #fff0e6; color: #b2541a; }
   @keyframes pop { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
 
-  .legend { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: 13px; font-weight: 700; }
+  .legend { margin-top: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: 13px; font-weight: 700; }
   .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 3px; }
 
   .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .compare .cloud-panel { margin-top: 0; }
+  .compare .cloud { height: 320px; }
   .growth-row { margin-top: 18px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   .growth-card { padding: 18px 20px; border-radius: 18px; background: var(--paper); border: 1px solid var(--line); }
   .growth-card b { display: block; font-size: 16px; letter-spacing: -0.04em; }
@@ -56,13 +60,15 @@
   body.is-show .question .send-row, body.is-show .send-hint, body.is-show .hero-copy { display: none; }
   body.is-show .selection-toolbar { margin: 0 0 18px; }
   body.is-show .question { margin-top: 0; }
-  body.is-show .cloud { min-height: 46vh; }
+  body.is-show #ask-view .cloud { height: 58vh; }
+  body.is-show .compare .cloud { height: 52vh; }
 
   @media (max-width: 860px) {
     .compare, .growth-row { grid-template-columns: 1fr; }
     .nav-pill { padding: 12px 16px; font-size: 15px; }
   }
   @media (max-width: 600px) {
+    .cloud, .compare .cloud { height: 320px; }
     .nav { gap: 6px; }
     .nav-pill { padding: 10px 12px; font-size: 13px; }
     .nav-pill--home, .brand-context { display: none; }
@@ -118,7 +124,10 @@
           <div class="stat-chips" id="cloud-stats"></div>
         </div>
         <div class="cloud" id="cloud" aria-live="polite"></div>
-        <div class="legend" id="legend"></div>
+        <div class="cloud-tools">
+          <button type="button" class="highlight-btn" id="highlight-btn" data-action="toggle-highlight">🔍 탐구 진술 단어 찾기</button>
+          <div class="legend" id="legend" hidden></div>
+        </div>
       </div>
     </section>
 
@@ -135,7 +144,7 @@
         </div>
       </div>
       <div class="growth-row" id="growth-row"></div>
-      <div class="legend" id="legend-compare"></div>
+      <div class="legend" id="legend-compare" style="margin-top:14px"></div>
     </section>
   </main>
 </div>

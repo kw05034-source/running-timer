@@ -29,7 +29,8 @@
   let words = [];
   // 시트에 아직 안 들어간 단어(보내기 실패)는 이 화면에만 보여 줍니다.
   let pending = [];
-  const state = { classNo: 1, classes: [1], phase: 'before', sending: false };
+  // highlight: 탐구 진술 단어만 색으로 (끄면 멘티미터처럼 모든 단어가 여러 색)
+  const state = { classNo: 1, classes: [1], phase: 'before', sending: false, highlight: false };
 
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (v) => String(v).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
@@ -78,18 +79,80 @@
     return { total: list.length, keyCount, byGroup, pct: list.length ? Math.round((keyCount / list.length) * 100) : 0 };
   }
 
-  function cloudHtml(list, big) {
+  // ---- 구름 그리기 ----
+  // 멘티미터처럼 가장 많이 나온 단어를 가운데 두고, 나머지는 나선을 따라 바깥으로 빈자리를 찾아 놓습니다.
+  // 일부 짧은 단어는 세로로 세웁니다. 위치는 단어로 정해져서 새로고침해도 그대로예요.
+  const PALETTE = ['#4f8cff', '#13b98f', '#ff8a4c', '#9b6bff', '#ff5d8f', '#e0a300', '#1fa8c9', '#6c7cff', '#e5534b', '#3fa34d'];
+  const MUTED = '#c3cad6';
+  const hashOf = (text) => [...text].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
+
+  function colorOf(item, highlight) {
+    if (highlight) return item.group ? item.group.color : MUTED;
+    return PALETTE[hashOf(item.word) % PALETTE.length];
+  }
+
+  function findSpot(placed, w, h, W, H, seed, gap) {
+    const cx = W / 2;
+    const cy = H / 2;
+    const stretch = Math.min(2.4, Math.max(1, W / H));
+    const turn = (seed % 628) / 100;
+    for (let t = 0; t < 900; t += 0.18) {
+      const r = 3.2 * t;
+      const x = cx + r * Math.cos(t + turn) * stretch - w / 2;
+      const y = cy + r * Math.sin(t + turn) - h / 2;
+      if (x < 0 || y < 0 || x + w > W || y + h > H) {
+        if (r > Math.max(W, H)) return null;
+        continue;
+      }
+      const hit = placed.some((p) => x < p.x + p.w + gap && x + w + gap > p.x && y < p.y + p.h + gap && y + h + gap > p.y);
+      if (!hit) return { x, y };
+    }
+    return null;
+  }
+
+  function drawCloud(el, list, highlight) {
     const items = tally(list);
-    if (!items.length) return '<p class="cloud-empty">아직 단어가 없어요. 첫 단어를 보내 보세요!</p>';
+    const W = el.clientWidth;
+    const H = el.clientHeight;
+    const sig = JSON.stringify([items.map((it) => [it.word, it.count]), highlight, W, H]);
+    if (el.dataset.sig === sig) return;
+    el.dataset.sig = sig;
+    const seen = el._seen || new Set();
+    el.innerHTML = '';
+    if (!items.length) {
+      el.innerHTML = '<p class="cloud-empty">아직 단어가 없어요. 첫 단어를 보내 보세요!</p>';
+      return;
+    }
     const max = items[0].count;
-    const [minSize, maxSize] = big ? [22, 76] : [18, 52];
-    // 큰 단어가 가운데 오도록 큰 것과 작은 것을 번갈아 양쪽에 놓습니다.
-    const arranged = [];
-    items.forEach((it, i) => { if (i % 2) arranged.push(it); else arranged.unshift(it); });
-    return arranged.map((it) => {
-      const size = Math.round(minSize + (maxSize - minSize) * (max > 1 ? (it.count - 1) / (max - 1) : 0.5));
-      return `<span class="${it.group ? it.group.cls : ''}" style="font-size:${size}px">${escapeHtml(it.word)}${it.count > 1 ? `<sup>${it.count}</sup>` : ''}</span>`;
-    }).join('');
+    // 단어가 많을수록 조금씩 작게 그립니다.
+    const top = Math.min(W * 0.16, H * 0.3) * (items.length > 30 ? 0.8 : 1);
+    const low = Math.max(15, top * 0.3);
+    const placed = [];
+    items.forEach((it, i) => {
+      const span = document.createElement('span');
+      span.textContent = it.word;
+      span.title = `${it.word} · ${it.count}명`;
+      span.style.color = colorOf(it, highlight);
+      if (highlight && it.group) span.classList.add('is-key');
+      // 띄어쓰기 없는 2~4글자 단어 일부만 세로로 세웁니다.
+      if (i > 0 && !it.word.includes(' ') && [...it.word].length >= 2 && [...it.word].length <= 4 && hashOf(it.word) % 10 < 3) span.classList.add('v');
+      if (!seen.has(it.word)) span.classList.add('is-new');
+      el.appendChild(span);
+      let size = max > 1 ? low + (top - low) * Math.sqrt((it.count - 1) / (max - 1)) : (i === 0 ? top * 0.7 : low + (top - low) * 0.35);
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        span.style.fontSize = `${Math.round(size)}px`;
+        const spot = findSpot(placed, span.offsetWidth, span.offsetHeight, W, H, hashOf(it.word), Math.max(5, size * 0.08));
+        if (spot) {
+          span.style.left = `${spot.x}px`;
+          span.style.top = `${spot.y}px`;
+          placed.push({ x: spot.x, y: spot.y, w: span.offsetWidth, h: span.offsetHeight });
+          return;
+        }
+        size *= 0.8;
+      }
+      span.remove();
+    });
+    el._seen = new Set(items.map((it) => it.word));
   }
 
   function statsHtml(list) {
@@ -104,15 +167,14 @@
   function render() {
     $('class-tabs').innerHTML = state.classes.map((c) => `<button type="button" class="class-tab${c === state.classNo ? ' is-selected' : ''}" role="tab" aria-selected="${c === state.classNo}" data-class="${c}">${c}반</button>`).join('');
     $('phase-tabs').innerHTML = PHASES.map((p) => `<button type="button" class="group-tab${p.key === state.phase ? ' is-selected' : ''}" role="tab" aria-selected="${p.key === state.phase}" data-phase="${p.key}">${p.label}</button>`).join('');
-    const big = document.body.classList.contains('is-show');
     const compare = state.phase === 'compare';
     $('ask-view').hidden = compare;
     $('compare-view').hidden = !compare;
     if (compare) {
       const before = wordsFor('before');
       const after = wordsFor('after');
-      $('before-cloud').innerHTML = cloudHtml(before, big);
-      $('after-cloud').innerHTML = cloudHtml(after, big);
+      drawCloud($('before-cloud'), before, true);
+      drawCloud($('after-cloud'), after, true);
       $('before-stats').innerHTML = statsHtml(before);
       $('after-stats').innerHTML = statsHtml(after);
       const b = statsOf(before);
@@ -129,7 +191,10 @@
     $('phase-label').textContent = `${state.classNo}반 · ${phase.label}`;
     $('question-text').textContent = QUESTION;
     $('cloud-title').textContent = `${state.classNo}반 ${phase.label} 단어 구름`;
-    $('cloud').innerHTML = cloudHtml(list, big);
+    drawCloud($('cloud'), list, state.highlight);
+    $('highlight-btn').textContent = state.highlight ? '🎨 모든 단어 색으로 보기' : '🔍 탐구 진술 단어 찾기';
+    $('highlight-btn').classList.toggle('is-on', state.highlight);
+    $('legend').hidden = !state.highlight;
     $('cloud-stats').innerHTML = statsHtml(list);
     $('legend').innerHTML = legendHtml();
     $('send-btn').disabled = state.sending;
@@ -204,14 +269,29 @@
       state.phase = t.dataset.phase;
       try { localStorage.setItem(PHASE_KEY, state.phase); } catch (e) { /* 무시 */ }
     } else if (t.dataset.action === 'toggle-show') {
-      const on = document.body.classList.toggle('is-show');
-      $('show-btn').textContent = on ? '✏️ 입력 화면으로' : '📺 화면에 띄우기';
+      setShow(!document.body.classList.contains('is-show'));
+    } else if (t.dataset.action === 'toggle-highlight') {
+      state.highlight = !state.highlight;
     }
     render();
   });
   $('send-form').addEventListener('submit', submitWord);
 
+  function setShow(on) {
+    document.body.classList.toggle('is-show', on);
+    $('show-btn').textContent = on ? '✏️ 입력 화면으로' : '📺 화면에 띄우기';
+  }
+
+  // 화면 크기가 바뀌면 구름을 다시 배치합니다.
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(render, 200);
+  });
+
   async function init() {
+    // 교사 현황의 '단어 구름 열기'는 ?show=1 로 열어 바로 크게 보여 줍니다.
+    if (new URLSearchParams(window.location.search).get('show') === '1') setShow(true);
     try {
       const stored = localStorage.getItem(PHASE_KEY);
       if (PHASES.some((p) => p.key === stored)) state.phase = stored;
