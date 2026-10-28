@@ -60,7 +60,7 @@ var GROWTH_HEADERS = [
 ];
 var GROWTH_FOCUS_VALUES = ['', 'start', 'turn', 'finish'];
 
-var AVAILABLE_ACTIONS = ['students', 'records', 'growth', 'speed_confidence', 'health'];
+var AVAILABLE_ACTIONS = ['students', 'records', 'growth', 'speed_confidence', 'speed_words', 'health'];
 
 // 전체 초기화: 선생님 화면의 번호(성장판과 같은 번호)를 SHA-256으로 비교합니다.
 var RESET_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
@@ -81,6 +81,10 @@ var GEMINI_MODEL_PROPERTY = 'GEMINI_MODEL';
 // 모델이 종료되거나 붐비면(404·503) 다음 모델로 넘어갑니다. 스크립트 속성 GEMINI_MODEL이 있으면 그 모델을 먼저 씁니다.
 var GEMINI_FALLBACK_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-flash-latest'];
 // 속력 탐구 자신감(1~10): 학생당 한 줄, 수업 전·후 점수를 덮어씁니다.
+// 속력 탐구 단어 구름: 수업 처음(before)과 끝(after)에 학생들이 낸 단어 (한 단어씩 한 줄)
+var SPEED_WORDS_SHEET_NAME = 'SpeedWords';
+var SPEED_WORDS_HEADERS = ['created_at', 'class', 'phase', 'word'];
+var SPEED_WORD_MAX_LENGTH = 20;
 var SPEED_CONFIDENCE_SHEET_NAME = 'SpeedConfidence';
 var SPEED_CONFIDENCE_HEADERS = [
   'updated_at',
@@ -132,6 +136,16 @@ function doGet(e) {
           RECORDS_SHEET_NAME,
           RECORDS_HEADERS
         )
+      });
+    }
+
+    if (action === 'speed_words') {
+      var wordsSpreadsheet = getSpreadsheet_();
+      getOrCreateSpeedWordsSheet_(wordsSpreadsheet);
+      return jsonResponse_({
+        ok: true,
+        action: action,
+        data: readSheetRows_(wordsSpreadsheet, SPEED_WORDS_SHEET_NAME, SPEED_WORDS_HEADERS)
       });
     }
 
@@ -206,6 +220,9 @@ function doPost(e) {
     }
     if (request && typeof request === 'object' && request.type === 'speed_confidence') {
       return saveSpeedConfidence_(request);
+    }
+    if (request && typeof request === 'object' && request.type === 'speed_word') {
+      return saveSpeedWord_(request);
     }
     validateRequestShape_(request);
     var inputRecord = normalizeRecordInput_(request.record);
@@ -1290,6 +1307,47 @@ function saveSpeedConfidence_(request) {
       sheet.appendRow(row);
     }
     return jsonResponse_({ ok: true, student_id: student.student_id, phase: request.phase, value: value });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getOrCreateSpeedWordsSheet_(spreadsheet) {
+  var sheet = spreadsheet.getSheetByName(SPEED_WORDS_SHEET_NAME);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(SPEED_WORDS_SHEET_NAME);
+    sheet.getRange(1, 1, 1, SPEED_WORDS_HEADERS.length).setValues([SPEED_WORDS_HEADERS]);
+    sheet.setFrozenRows(1);
+    return sheet;
+  }
+  return getValidatedSheet_(spreadsheet, SPEED_WORDS_SHEET_NAME, SPEED_WORDS_HEADERS);
+}
+
+function saveSpeedWord_(request) {
+  var classNo = Number(request['class']);
+  if (!(classNo >= 1 && classNo <= 20 && Math.floor(classNo) === classNo)) {
+    throwAppError_('INVALID_CLASS', 'class는 1~20 사이의 정수여야 합니다.', 400);
+  }
+  if (request.phase !== 'before' && request.phase !== 'after') {
+    throwAppError_('INVALID_PHASE', 'phase는 before 또는 after여야 합니다.', 400);
+  }
+  var word = String(request.word == null ? '' : request.word).replace(/\s+/g, ' ').trim();
+  if (!word || word.length > SPEED_WORD_MAX_LENGTH) {
+    throwAppError_('INVALID_WORD', '단어는 1~' + SPEED_WORD_MAX_LENGTH + '자로 써 주세요.', 400);
+  }
+  // 시트 수식으로 해석되지 않도록 = + - @ 로 시작하면 앞에 따옴표를 붙입니다.
+  if (/^[=+\-@]/.test(word)) {
+    word = "'" + word;
+  }
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throwAppError_('LOCK_TIMEOUT', '동시 저장이 많아 잠금을 획득하지 못했습니다. 잠시 후 다시 시도하세요.', 503);
+  }
+  try {
+    var sheet = getOrCreateSpeedWordsSheet_(getSpreadsheet_());
+    sheet.appendRow([new Date(), classNo, request.phase, word]);
+    return jsonResponse_({ ok: true, 'class': classNo, phase: request.phase, word: word });
   } finally {
     lock.releaseLock();
   }
