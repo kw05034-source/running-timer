@@ -56,6 +56,7 @@
   function setScreen(name) {
     state.screen = name;
     document.querySelectorAll('[data-screen]').forEach((el) => { el.hidden = el.dataset.screen !== name; });
+    renderJourney();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -71,6 +72,67 @@
       if (!best[m.key] || v > best[m.key]) best[m.key] = v;
     });
     return best;
+  }
+
+  // ---- 학생 단계 카드 ----
+  // 수업 전 자신감 → 세 가지 방식 → 랭킹 도전 → 수업 후 자신감. 성장판과 같은 모양으로 보여 줍니다.
+  const JOURNEY_SCREENS = ['confidence', 'run', 'confirm', 'result'];
+  function journeySteps(id) {
+    const best = bestSpeeds(id);
+    const c = confidence[id] || {};
+    const allThree = METHODS.every((m) => best[m.key]);
+    return [
+      { key: 'before', label: '수업 전', sub: '자신감 매기기', done: c.before !== undefined },
+      ...METHODS.map((m) => ({ key: m.key, label: m.label, sub: m.key === '20x1' ? '걸음 수로 보폭' : `방향 전환 ${m.turns}번`, done: !!best[m.key] })),
+      { key: 'challenge', label: '랭킹 도전', sub: '한 방식 골라 다시', done: allThree && speedRecordsOf(id).length > METHODS.length },
+      { key: 'after', label: '수업 후', sub: '자신감·돌아보기', done: !!c.after }
+    ];
+  }
+
+  function currentStepKey() {
+    if (state.screen === 'confidence') return state.confPhase;
+    if (state.method) {
+      const done = !!bestSpeeds(state.studentId)[state.method];
+      const allThree = METHODS.every((m) => bestSpeeds(state.studentId)[m.key]);
+      return allThree || (done && state.challenge) ? 'challenge' : state.method;
+    }
+    return state.challenge ? 'challenge' : null;
+  }
+
+  function renderJourney() {
+    const student = getStudent(state.studentId);
+    const show = !!student && JOURNEY_SCREENS.includes(state.screen);
+    $('journey').hidden = !show;
+    if (!show) return;
+    const steps = journeySteps(student.student_id);
+    // 고른 방식이 없으면 아직 안 한 첫 단계를 '지금 단계'로 보여 줍니다.
+    const current = currentStepKey() || (steps.find((st) => !st.done) || {}).key;
+    $('journey-name').textContent = student.name;
+    $('journey-meta').textContent = `${student.class}반 · ${student.group_or_team} · ${student.number}번`;
+    $('journey-progress').textContent = `${steps.filter((st) => st.done).length}/${steps.length}단계 완료`;
+    const locked = state.timer === 'running' || state.screen === 'confirm';
+    $('journey-steps').innerHTML = steps.map((st, i) => `
+      <button type="button" data-step="${st.key}" class="${st.done ? 'done' : ''}" ${current === st.key ? 'aria-current="step"' : ''} ${locked ? 'disabled' : ''}>
+        <span class="dot">${st.done ? '✓' : (i === 0 ? '전' : i === steps.length - 1 ? '후' : i)}</span>
+        <span class="txt"><b>${st.label}</b><small>${st.sub}</small></span>
+      </button>`).join('');
+  }
+
+  function openStep(key) {
+    const id = state.studentId;
+    if (key === 'before' || key === 'after') { openConfidence(id, key); return; }
+    if (key === 'challenge') {
+      openRun(id, true);
+      state.challenge = true;
+      renderRun();
+      renderJourney();
+      showToast('가장 자신 있는 방식을 골라 한 번 더 달려 보세요!');
+      return;
+    }
+    openRun(id, true);
+    state.method = key;
+    renderRun();
+    renderJourney();
   }
 
   // ---- 학생 선택 ----
@@ -114,9 +176,6 @@
     const student = getStudent(state.studentId);
     if (!student) return;
     const best = bestSpeeds(student.student_id);
-    $('run-avatar').textContent = student.name.slice(0, 1);
-    $('run-meta').textContent = `${student.class}반 · ${student.group_or_team} · ${student.number}번`;
-    $('run-name').textContent = student.name;
     $('methods').innerHTML = METHODS.map((m) => `
       <button type="button" class="method-option${state.method === m.key ? ' is-selected' : ''}" data-method="${m.key}" ${state.timer === 'running' ? 'disabled' : ''}>
         <span><strong>${m.label}</strong> <small>방향 전환 ${m.turns}번</small></span>${best[m.key] ? `<span class="done">✓ ${fmtSpeed(best[m.key])}</span>` : ''}</button>`).join('');
@@ -126,7 +185,7 @@
     $('timer-status-text').textContent = state.timer === 'running' ? '측정 중' : (state.method ? `${METHODS.find((m) => m.key === state.method).label} 준비` : '방식을 골라 주세요');
     $('start-btn').disabled = state.timer !== 'idle' || !state.method;
     $('stop-btn').disabled = state.timer !== 'running';
-    $('run-hint').textContent = state.timer === 'running' ? '도착하면 STOP(또는 Enter)!' : (state.method ? 'START(또는 Enter)를 누르면 출발이에요.' : '먼저 이번에 뛸 방식을 고르세요.');
+    $('run-hint').textContent = state.timer === 'running' ? '도착하면 STOP(또는 Enter)!' : (state.method ? 'START(또는 Enter)를 누르면 출발이에요.' : (state.challenge ? '랭킹 도전! 가장 자신 있는 방식을 골라요.' : '먼저 이번에 뛸 방식을 고르세요.'));
   }
 
   // ---- 자신감 (1~10) ----
@@ -224,6 +283,7 @@
     if (!skipConfidenceCheck && (confidence[studentId] || {}).before === undefined) { openConfidence(studentId, 'before'); return; }
     state.studentId = studentId;
     state.method = null;
+    state.challenge = false;
     state.timer = 'idle';
     state.elapsedMs = 0;
     setScreen('run');
@@ -237,6 +297,7 @@
     window.timerBeep?.('start');
     state.timerId = window.setInterval(renderRun, 40);
     renderRun();
+    renderJourney();
   }
 
   function stop() {
@@ -249,6 +310,7 @@
       state.timer = 'idle';
       state.elapsedMs = 0;
       renderRun();
+      renderJourney();
       showToast(`기록이 ${MIN_SEC}초보다 짧아서 인정되지 않았어요. 다시 달려 주세요.`);
       return;
     }
@@ -495,13 +557,14 @@
 
   // ---- 입력 ----
   document.addEventListener('click', (event) => {
-    const t = event.target.closest('[data-class],[data-group],[data-student],[data-method],[data-conf],[data-action]');
+    const t = event.target.closest('[data-class],[data-group],[data-student],[data-method],[data-step],[data-conf],[data-action]');
     if (!t) return;
     if (state.timer === 'running' && !t.matches('[data-action="stop"]')) { showToast('측정 중이에요. 먼저 STOP을 눌러 주세요.'); return; }
     if (t.dataset.class) { state.classNo = Number(t.dataset.class); try { localStorage.setItem(CLASS_KEY, String(state.classNo)); } catch (e) { /* 무시 */ } renderPick(); return; }
     if (t.dataset.group !== undefined && !t.dataset.action) { state.group = t.dataset.group; renderPick(); return; }
     if (t.dataset.student) { openRun(t.dataset.student); return; }
-    if (t.dataset.method) { state.method = t.dataset.method; renderRun(); return; }
+    if (t.dataset.method) { state.method = t.dataset.method; renderRun(); renderJourney(); return; }
+    if (t.dataset.step) { openStep(t.dataset.step); return; }
     if (t.dataset.conf) { pickConfidence(Number(t.dataset.conf)); return; }
     const action = t.dataset.action;
     if (action === 'start') start();
