@@ -1353,27 +1353,37 @@ function speedWordProblem_(word) {
   return null;
 }
 
+// 한 학생이 한 화면에서 쓴 답을 한 번에 저장합니다.
+// body: { type: 'speed_word', class, items: [{ phase, word }, ...] } (예전 화면의 { phase, word } 한 개도 받습니다)
+// phase — before·after: 기록 줄이기(수업 전·후), efficacy: 내가 생각하는 자기효능감, gain: 이번 차시에서 깨달은 것
 function saveSpeedWord_(request) {
   var classNo = Number(request['class']);
   if (!(classNo >= 1 && classNo <= 20 && Math.floor(classNo) === classNo)) {
     throwAppError_('INVALID_CLASS', 'class는 1~20 사이의 정수여야 합니다.', 400);
   }
-  // before·after: 기록 줄이기(수업 전·후), efficacy: 내가 생각하는 자기효능감, gain: 이번 수업에서 얻은 것
-  if (['before', 'after', 'efficacy', 'gain'].indexOf(request.phase) === -1) {
-    throwAppError_('INVALID_PHASE', 'phase는 before, after, efficacy, gain 중 하나여야 합니다.', 400);
+  var items = Array.isArray(request.items) ? request.items : [{ phase: request.phase, word: request.word }];
+  if (!items.length || items.length > 4) {
+    throwAppError_('INVALID_REQUEST', '한 번에 1~4개까지 보낼 수 있습니다.', 400);
   }
-  var word = String(request.word == null ? '' : request.word).replace(/\s+/g, ' ').trim();
-  if (!word || word.length > SPEED_WORD_MAX_LENGTH) {
-    throwAppError_('INVALID_WORD', '단어는 1~' + SPEED_WORD_MAX_LENGTH + '자로 써 주세요.', 400);
-  }
-  var problem = speedWordProblem_(word);
-  if (problem) {
-    throwAppError_('BAD_WORD', problem, 400);
-  }
-  // 시트 수식으로 해석되지 않도록 = + - @ 로 시작하면 앞에 따옴표를 붙입니다.
-  if (/^[=+\-@]/.test(word)) {
-    word = "'" + word;
-  }
+  var now = new Date();
+  var rows = items.map(function (item) {
+    if (!item || ['before', 'after', 'efficacy', 'gain'].indexOf(item.phase) === -1) {
+      throwAppError_('INVALID_PHASE', 'phase는 before, after, efficacy, gain 중 하나여야 합니다.', 400);
+    }
+    var word = String(item.word == null ? '' : item.word).replace(/\s+/g, ' ').trim();
+    if (!word || word.length > SPEED_WORD_MAX_LENGTH) {
+      throwAppError_('INVALID_WORD', '단어는 1~' + SPEED_WORD_MAX_LENGTH + '자로 써 주세요.', 400);
+    }
+    var problem = speedWordProblem_(word);
+    if (problem) {
+      throwAppError_('BAD_WORD', problem, 400);
+    }
+    // 시트 수식으로 해석되지 않도록 = + - @ 로 시작하면 앞에 따옴표를 붙입니다.
+    if (/^[=+\-@]/.test(word)) {
+      word = "'" + word;
+    }
+    return [now, classNo, item.phase, word];
+  });
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) {
@@ -1381,8 +1391,8 @@ function saveSpeedWord_(request) {
   }
   try {
     var sheet = getOrCreateSpeedWordsSheet_(getSpreadsheet_());
-    sheet.appendRow([new Date(), classNo, request.phase, word]);
-    return jsonResponse_({ ok: true, 'class': classNo, phase: request.phase, word: word });
+    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, SPEED_WORDS_HEADERS.length).setValues(rows);
+    return jsonResponse_({ ok: true, 'class': classNo, saved: rows.length });
   } finally {
     lock.releaseLock();
   }
