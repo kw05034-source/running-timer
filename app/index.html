@@ -399,16 +399,24 @@
   }
   #start-page .mode-btn.is-selected{background:#fff; color:#10213e; box-shadow:0 4px 14px rgba(0,0,0,.25)}
   #start-page .mode-desc{min-height:3.2em; margin:16px auto 28px; max-width:560px; font-size:16px; line-height:1.6; color:#cfe0ff}
-  #start-page .start-actions{display:grid; grid-template-columns:1fr 1fr; gap:18px}
-  #start-page .start-big{
-    border:0; cursor:pointer; font:inherit; border-radius:24px; padding:40px 16px; font-size:clamp(24px,3.6vw,34px); font-weight:900;
-    display:flex; flex-direction:column; align-items:center; gap:10px; box-shadow:0 18px 40px rgba(0,0,0,.3);
+  #start-page .start-actions{display:grid; grid-template-columns:1fr; gap:16px; max-width:720px; margin:0 auto}
+  #start-page .start-step{
+    display:flex; align-items:center; gap:20px; width:100%; border:0; cursor:pointer; font:inherit; text-align:left; text-decoration:none;
+    border-radius:24px; padding:24px 28px; box-shadow:0 18px 40px rgba(0,0,0,.3);
   }
-  #start-page .start-big small{font-size:15px; font-weight:700; opacity:.8}
-  #start-page .start-big:active{transform:translateY(1px) scale(.99)}
-  #start-page .start-big--video{background:#fff; color:#10213e}
-  #start-page .start-big--measure{background:#3dd8b0; color:#06352a}
-  @media (max-width:560px){ #start-page .start-actions{grid-template-columns:1fr} }
+  #start-page .start-step:active{transform:translateY(1px) scale(.99)}
+  #start-page .start-step__no{flex:none; min-width:96px; padding:10px 14px; border-radius:14px; font-size:17px; font-weight:900; text-align:center; background:rgba(0,0,0,.08)}
+  #start-page .start-step__txt{flex:1; display:flex; flex-direction:column; gap:6px}
+  #start-page .start-step__txt b{font-size:clamp(22px,3.2vw,30px); font-weight:900; letter-spacing:-.02em}
+  #start-page .start-step__txt small{font-size:15px; font-weight:700; opacity:.78; line-height:1.4}
+  #start-page .start-step__go{flex:none; font-size:28px; font-weight:900; opacity:.6}
+  #start-page .start-step--video{background:#fff; color:#10213e}
+  #start-page .start-step--measure{background:#3dd8b0; color:#06352a}
+  #start-page .start-step--speed{background:#ff9c5f; color:#2a1300}
+  @media (max-width:560px){
+    #start-page .start-step{flex-direction:column; align-items:flex-start; gap:12px; padding:22px}
+    #start-page .start-step__go{display:none}
+  }
   #start-page .start-actions[hidden], #start-page .course-pick[hidden]{display:none}
   #start-page .course-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
   #start-page .course{
@@ -433,8 +441,21 @@
     <h1>오늘은 무엇을 할까요?</h1>
     <p class="mode-desc" id="start-mode-desc"></p>
     <div class="start-actions">
-      <button type="button" class="start-big start-big--video" id="start-video">🎬 영상 보기<small>동기유발 영상을 먼저 봐요</small></button>
-      <button type="button" class="start-big start-big--measure" id="start-measure">⏱ 측정 하기<small>바로 학생을 골라 측정해요</small></button>
+      <button type="button" class="start-step start-step--video" id="start-video">
+        <span class="start-step__no">Warm up</span>
+        <span class="start-step__txt"><b>🎬 동기유발 영상</b><small>영상을 보고 301번 버스·지그재그·이어달리기로 몸을 풀어요</small></span>
+        <span class="start-step__go" aria-hidden="true">→</span>
+      </button>
+      <button type="button" class="start-step start-step--measure" id="start-measure">
+        <span class="start-step__no">1차시</span>
+        <span class="start-step__txt"><b>⏱ 기록 측정 및 도전하기</b><small>이름을 눌러 기록을 재고, 랭킹과 성장판으로 도전해요</small></span>
+        <span class="start-step__go" aria-hidden="true">→</span>
+      </button>
+      <a class="start-step start-step--speed" href="./speed.html">
+        <span class="start-step__no">2차시</span>
+        <span class="start-step__txt"><b>⚡ 속력 개념 탐구</b><small>같은 40m를 세 가지 방법으로 달리고 평균속력을 비교해요</small></span>
+        <span class="start-step__go" aria-hidden="true">→</span>
+      </a>
     </div>
     <div class="course-pick" id="course-pick" hidden>
       <div class="course-grid">
@@ -580,20 +601,6 @@
         border-radius:999px;
         box-shadow:0 4px 14px rgba(0,0,0,0.2);
       ">🏆 랭킹 보기</a>
-      <a href="./speed.html" style="
-        text-decoration:none;
-        cursor:pointer;
-        display:inline-flex;
-        align-items:center;
-        gap:8px;
-        background:#ff9c5f;
-        color:#2a1300;
-        font-weight:800;
-        font-size:18px;
-        padding:14px 28px;
-        border-radius:999px;
-        box-shadow:0 4px 14px rgba(0,0,0,0.2);
-      ">⚡ 속력 탐구</a>
       <a href="./growth.html#teacher" style="
         text-decoration:none;
         cursor:pointer;
@@ -1046,7 +1053,7 @@
   // 그래서 측정 앱은 항상 기록 측정 모드로 둡니다. 이 스크립트가 app.js(defer)보다 먼저 실행되므로 app.js도 기록 모드로 시작합니다.
   try { sessionStorage.setItem(MODE_KEY, 'record'); } catch (e) {}
   function paintMode(){
-    document.getElementById('start-mode-desc').textContent = '영상 보기는 영상을 보고 스탑워치로 웜업해요(저장 안 함). 측정 하기에서 이름을 눌러 잰 5초 이상 기록은 모두 랭킹에 들어가요.';
+    document.getElementById('start-mode-desc').textContent = '웜업은 저장하지 않아요. 1차시에서 이름을 눌러 잰 5초 이상 기록은 모두 랭킹에 들어가고, 2차시는 속력 탐구 화면에서 따로 해요.';
   }
 
   function goToStart(){
