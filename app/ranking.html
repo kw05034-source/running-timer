@@ -316,9 +316,9 @@
         if (SPEED_BOARD) {
           const top = list.reduce((acc, r) => {
             const v = SPEED_DISTANCE_M / Number(r.record_seconds);
-            return Number.isFinite(v) && (!acc || v > acc.v) ? { v, method: SPEED_LABELS[r.activity_type] } : acc;
+            return Number.isFinite(v) && (!acc || v > acc.v) ? { v, sec: Number(r.record_seconds), method: SPEED_LABELS[r.activity_type] } : acc;
           }, null);
-          return { student: s, attempts: list.length, best: top ? top.v : null, method: top ? top.method : '' };
+          return { student: s, attempts: list.length, best: top ? top.v : null, sec: top ? top.sec : null, method: top ? top.method : '' };
         }
         const times = list.map((r) => Number(r.record_seconds));
         const best = times.length ? Math.min(...times) : null;
@@ -344,7 +344,7 @@
   }
 
   function busBadgeOf(entry) {
-    if (SPEED_BOARD) return state.mode === 'best' && entry.method ? `<span class="method-badge">${entry.method}</span>` : '';
+    if (SPEED_BOARD) return state.mode === 'best' && entry.method ? `<span class="method-badge">${entry.method} · ${formatSeconds(entry.sec)}초</span>` : '';
     if (state.mode !== 'best' || entry.best === null) return '';
     return isOnTime(entry)
       ? '<span class="bus-badge ok">🚌 등교 성공</span>'
