@@ -106,7 +106,9 @@
   .conf-actions { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 9px; }
   .conf-actions .primary-button { min-width: 220px; padding: 0 24px; font-size: 16px; }
   .conf-actions .secondary-button { padding: 0 20px; }
-  .word-fields { display: grid; gap: 22px; }
+  .word-fields { display: grid; gap: 22px; margin-top: 30px; padding-top: 26px; border-top: 1px solid var(--line); }
+  .word-fields[hidden] { display: none; }
+  #conf-num[hidden] { display: none; }
   .word-field { display: grid; gap: 10px; }
   .word-q { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; color: var(--navy-900); font-size: 20px; font-weight: 800; letter-spacing: -0.03em; }
   .word-q b { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--navy-900); color: #fff; font-size: 14px; }
@@ -233,37 +235,20 @@
         <button class="back-button" type="button" data-action="go-pick"><span aria-hidden="true">←</span> 학생 선택</button>
       </div>
       <div class="page-head" style="margin-top:40px">
-        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>자신감 점수</p>
+        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span><span id="conf-eyebrow">자신감과 내 생각</span></p>
         <h1 id="conf-title"></h1>
         <p id="conf-sub"></p>
       </div>
       <div class="panel">
-        <h2>내 평균속력을 높일 수 있다는 자신감은 몇 점인가요?</h2>
-        <div class="conf-grid" id="conf-buttons"></div>
-        <div class="conf-scale"><span>1 전혀 자신 없어요</span><span>10 아주 자신 있어요</span></div>
-        <div class="conf-actions">
-          <button type="button" class="primary-button" id="conf-save" data-action="conf-save" disabled>점수를 먼저 골라 주세요</button>
-          <button type="button" class="secondary-button" id="conf-skip" data-action="conf-skip" hidden>저장 없이 계속하기</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- 1-2. 단어 구름 질문 (수업 전: 기록 줄이기 / 수업 후: 기록 줄이기·자기효능감·얻은 것) -->
-    <section class="screen" data-screen="word" hidden>
-      <div class="screen-topbar">
-        <button class="back-button" type="button" data-action="go-pick"><span aria-hidden="true">←</span> 학생 선택</button>
-      </div>
-      <div class="page-head" style="margin-top:40px">
-        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span><span id="word-eyebrow"></span></p>
-        <h1 id="word-title"></h1>
-        <p id="word-sub"></p>
-      </div>
-      <div class="panel">
-        <form id="word-form" autocomplete="off">
+        <!-- 자신감 점수와 단어 질문(수업 전: 기록 줄이기 / 수업 후: 기록 줄이기·자기효능감·깨달은 것)을 한 화면에서 한 번에 저장 -->
+        <form id="conf-form" autocomplete="off">
+          <h2 class="word-q"><b id="conf-num">1</b>내 평균속력을 높일 수 있다는 자신감은 몇 점인가요?</h2>
+          <div class="conf-grid" id="conf-buttons"></div>
+          <div class="conf-scale"><span>1 전혀 자신 없어요</span><span>10 아주 자신 있어요</span></div>
           <div class="word-fields" id="word-fields"></div>
           <div class="conf-actions">
-            <button type="submit" class="primary-button" id="word-send" disabled>모두 써 주세요</button>
-            <button type="button" class="secondary-button" id="word-skip" data-action="word-skip" hidden>저장하지 않고 넘어가기</button>
+            <button type="submit" class="primary-button" id="conf-save" disabled>점수를 먼저 골라 주세요</button>
+            <button type="button" class="secondary-button" id="conf-skip" data-action="conf-skip" hidden>저장하지 않고 넘어가기</button>
           </div>
         </form>
       </div>

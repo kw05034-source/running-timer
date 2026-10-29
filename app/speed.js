@@ -93,7 +93,7 @@
 
   // ---- 학생 단계 카드 ----
   // 수업 전 자신감 → 세 가지 방식 → 랭킹 도전 → 수업 후 자신감. 성장판과 같은 모양으로 보여 줍니다.
-  const JOURNEY_SCREENS = ['confidence', 'word', 'run', 'confirm', 'result'];
+  const JOURNEY_SCREENS = ['confidence', 'run', 'confirm', 'result'];
   function journeySteps(id) {
     const best = bestSpeeds(id);
     const c = confidence[id] || {};
@@ -108,7 +108,6 @@
 
   function currentStepKey() {
     if (state.screen === 'confidence') return state.confPhase;
-    if (state.screen === 'word') return state.wordConfPhase;
     if (state.method) {
       const done = !!bestSpeeds(state.studentId)[state.method];
       const allThree = METHODS.every((m) => bestSpeeds(state.studentId)[m.key]);
@@ -206,56 +205,106 @@
     $('run-hint').textContent = state.timer === 'running' ? '도착하면 STOP(또는 Enter)!' : (state.method ? 'START(또는 Enter)를 누르면 출발이에요.' : (state.challenge ? '랭킹 도전! 가장 자신 있는 방식을 골라요.' : '먼저 이번에 뛸 방식을 고르세요.'));
   }
 
-  // ---- 자신감 (1~10) ----
-  // 처음 달리기 전에 한 번(before), 수업 끝에 한 번(after) 매깁니다.
+  // ---- 자신감 (1~10) + 내 생각 ----
+  // 처음 달리기 전에 한 번(before), 수업 끝에 한 번(after). 점수를 고르고 바로 아래 질문에 써서 저장 한 번으로 넘어갑니다.
   function openConfidence(studentId, phase) {
     const student = getStudent(studentId);
     if (!student) return;
+    const before = phase === 'before';
     state.studentId = studentId;
     state.confPhase = phase;
-    $('conf-title').textContent = `${student.name}, ${phase === 'before' ? '달리기 전에' : '오늘 수업을 마치며'}`;
-    $('conf-sub').textContent = phase === 'before' ? '솔직하게 골라 주세요. 수업이 끝나면 한 번 더 물어볼게요.' : '처음에 고른 점수와 비교해 볼 거예요.';
+    $('conf-eyebrow').textContent = before ? '수업 전 · 자신감과 내 생각' : '수업 후 · 자신감과 내 생각';
+    $('conf-title').textContent = `${student.name}, ${before ? '달리기 전에' : '오늘 수업을 마치며'}`;
+    $('conf-sub').textContent = before ? '정답은 없어요. 솔직하게 고르고 써 주세요. 수업이 끝나면 한 번 더 물어볼게요.' : '처음에 고른 점수와 쓴 생각을 비교해 볼 거예요.';
     state.confPick = (confidence[studentId] || {})[phase] || null;
+    state.confDone = false;
     state.confSaving = false;
+    // 이 화면에서 이미 보낸 질문은 빼요.
+    state.wordKeys = WORD_FLOW[phase].filter((key) => !(myWords[studentId] || {})[key]);
+    $('word-fields').innerHTML = state.wordKeys.map((key, i) => {
+      const q = WORD_QUESTIONS[key];
+      return `<label class="word-field" data-word-key="${key}">
+          <span class="word-q"><b>${i + 2}</b>${q.q}${q.note ? `<small>${q.note}</small>` : ''}</span>
+          <input maxlength="20" placeholder="한두 단어로 써요" aria-label="${q.q}" data-word-input="${key}">
+          <span class="word-error" role="alert" hidden></span>
+        </label>`;
+    }).join('');
+    $('word-fields').hidden = !state.wordKeys.length;
+    $('conf-num').hidden = !state.wordKeys.length;
     $('conf-skip').hidden = true;
     renderConfidence();
     setScreen('confidence');
   }
 
+  const wordValue = (key) => $('word-fields').querySelector(`[data-word-input="${key}"]`).value.replace(/\s+/g, ' ').trim();
+
   function renderConfidence() {
     $('conf-buttons').innerHTML = Array.from({ length: 10 }, (_, i) => `<button type="button" class="${state.confPick === i + 1 ? 'is-selected' : ''}" data-conf="${i + 1}" ${state.confSaving ? 'disabled' : ''}>${i + 1}</button>`).join('');
-    $('conf-save').disabled = !state.confPick || state.confSaving;
-    $('conf-save').innerHTML = state.confSaving ? '저장하는 중...' : (state.confPick ? `<span aria-hidden="true">✓</span> ${state.confPick}점으로 저장` : '점수를 먼저 골라 주세요');
+    const total = state.wordKeys.length;
+    const filled = state.wordKeys.filter((key) => wordValue(key)).length;
+    const next = state.confPhase === 'before' ? '저장하고 달리러 가기' : '저장하고 결과 보기';
+    $('conf-save').disabled = !state.confPick || filled < total || state.confSaving;
+    $('conf-save').innerHTML = state.confSaving ? '저장하는 중...'
+      : !state.confPick ? '점수를 먼저 골라 주세요'
+      : filled < total ? `${total > 1 ? `${filled}/${total} · ` : ''}질문에도 써 주세요`
+      : `<span aria-hidden="true">✓</span> ${next}`;
   }
 
   function pickConfidence(value) {
     if (state.confSaving) return;
     state.confPick = value;
     renderConfidence();
+    const empty = state.wordKeys.find((key) => !wordValue(key));
+    if (empty) $('word-fields').querySelector(`[data-word-input="${empty}"]`).focus();
   }
 
-  // 점수를 고른 뒤 저장 버튼을 눌러야 시트에 저장되고 다음 화면으로 넘어갑니다.
-  async function saveConfidence() {
-    const studentId = state.studentId;
+  // 점수와 글을 한 번에 저장합니다. 둘을 동시에 보내고, 실패한 쪽만 다시 보내요.
+  async function saveConfidence(event) {
+    if (event) event.preventDefault();
+    const student = getStudent(state.studentId);
     const phase = state.confPhase;
     const value = state.confPick;
-    if (!value || state.confSaving) return;
+    if (!student || !value || state.confSaving) return;
+    const items = state.wordKeys.map((key) => ({ phase: key, word: wordValue(key) }));
+    if (items.some((it) => !it.word)) return;
+    // 질문마다 바르지 않은 말을 먼저 거르고, 걸린 칸 아래에 안내를 띄웁니다.
+    let firstBad = null;
+    items.forEach((it) => {
+      const field = $('word-fields').querySelector(`[data-word-key="${it.phase}"]`);
+      const problem = wordProblem(it.word);
+      field.querySelector('.word-error').hidden = !problem;
+      field.querySelector('.word-error').textContent = problem || '';
+      if (problem && !firstBad) firstBad = field.querySelector('input');
+    });
+    if (firstBad) { firstBad.select(); return; }
     state.confSaving = true;
     renderConfidence();
-    try {
-      const res = await postJson({ type: 'speed_confidence', student_id: studentId, phase, value });
+    const id = student.student_id;
+    const sendConf = state.confDone ? null : postJson({ type: 'speed_confidence', student_id: id, phase, value }).then((res) => {
       if (!res.ok) throw new Error(res.error?.message);
-      confidence[studentId] = { ...(confidence[studentId] || {}), [phase]: value };
-      state.confSaving = false;
-      continueAfterConfidence(studentId, phase);
-      showToast(`자신감 ${value}점을 저장했어요!`);
-    } catch (error) {
-      console.warn('자신감 저장 실패', error);
-      state.confSaving = false;
-      renderConfidence();
-      $('conf-skip').hidden = false;
-      showToast('저장하지 못했어요. 인터넷 연결을 확인하고 저장을 다시 눌러 주세요.');
+      confidence[id] = { ...(confidence[id] || {}), [phase]: value };
+      state.confDone = true;
+    });
+    const sendWords = !items.length ? null : postJson({ type: 'speed_word', class: student.class, items }).then((res) => {
+      if (!res.ok) throw new Error(res.error?.message);
+      myWords[id] = { ...(myWords[id] || {}), ...Object.fromEntries(items.map((it) => [it.phase, it.word])) };
+    });
+    const results = await Promise.allSettled([sendConf, sendWords].filter(Boolean));
+    state.confSaving = false;
+    // 글이 저장됐으면 그 칸은 다시 보내지 않도록 비웁니다.
+    state.wordKeys = state.wordKeys.filter((key) => !(myWords[id] || {})[key]);
+    $('word-fields').querySelectorAll('.word-field').forEach((f) => { if (!state.wordKeys.includes(f.dataset.wordKey)) f.remove(); });
+    $('word-fields').hidden = !state.wordKeys.length;
+    const failed = results.filter((r) => r.status === 'rejected');
+    if (!failed.length) {
+      finishConfidence();
+      showToast('저장했어요! 생각은 우리 반 단어 구름에 모여요.');
+      return;
     }
+    failed.forEach((r) => console.warn('저장 실패', r.reason));
+    renderConfidence();
+    $('conf-skip').hidden = false;
+    showToast('저장하지 못했어요. 인터넷 연결을 확인하고 저장을 다시 눌러 주세요.');
   }
 
   // 시트 저장이 계속 안 될 때 수업이 멈추지 않도록, 이 화면에만 점수를 남기고 넘어갑니다.
@@ -264,51 +313,11 @@
     const phase = state.confPhase;
     if (state.confPick) confidence[studentId] = { ...(confidence[studentId] || {}), [phase]: state.confPick };
     else if (phase === 'before') confidence[studentId] = { ...(confidence[studentId] || {}), before: 0 };
-    continueAfterConfidence(studentId, phase);
+    finishConfidence();
   }
 
-  // 자신감 다음에 단어 질문을 한 화면에 모아 묻습니다. 이 화면에서 이미 보낸 질문은 빼요.
-  function continueAfterConfidence(studentId, phase) {
-    state.wordConfPhase = phase;
-    state.wordKeys = WORD_FLOW[phase].filter((key) => !(myWords[studentId] || {})[key]);
-    if (!state.wordKeys.length) { finishWords(); return; }
-    openWords();
-  }
-
-  function finishWords() {
-    if (state.wordConfPhase === 'before') openRun(state.studentId, true); else openResult();
-  }
-
-  function openWords() {
-    const student = getStudent(state.studentId);
-    if (!student) return;
-    const before = state.wordConfPhase === 'before';
-    state.wordSaving = false;
-    $('word-eyebrow').textContent = before ? '수업 전 · 내 생각' : '수업 후 · 내 생각';
-    $('word-title').textContent = before ? `${student.name}, 달리기 전에 하나 더` : `${student.name}, 오늘 수업을 돌아봐요`;
-    $('word-sub').textContent = before ? '정답은 없어요. 지금 생각을 한두 단어로 써 주세요. 수업이 끝나면 한 번 더 물어볼게요.' : '정답은 없어요. 질문마다 한두 단어로 쓰고 아래에서 한 번에 저장해요.';
-    $('word-fields').innerHTML = state.wordKeys.map((key, i) => {
-      const q = WORD_QUESTIONS[key];
-      return `<label class="word-field" data-word-key="${key}">
-          <span class="word-q">${state.wordKeys.length > 1 ? `<b>${i + 1}</b>` : ''}${q.q}${q.note ? `<small>${q.note}</small>` : ''}</span>
-          <input maxlength="20" placeholder="한두 단어로 써요" aria-label="${q.q}" data-word-input="${key}">
-          <span class="word-error" role="alert" hidden></span>
-        </label>`;
-    }).join('');
-    $('word-skip').hidden = true;
-    renderWord();
-    setScreen('word');
-    $('word-fields').querySelector('input').focus();
-  }
-
-  const wordValue = (key) => $('word-fields').querySelector(`[data-word-input="${key}"]`).value.replace(/\s+/g, ' ').trim();
-
-  function renderWord() {
-    const filled = state.wordKeys.filter((key) => wordValue(key)).length;
-    const total = state.wordKeys.length;
-    const next = state.wordConfPhase === 'before' ? '저장하고 달리러 가기' : '저장하고 결과 보기';
-    $('word-send').disabled = filled < total || state.wordSaving;
-    $('word-send').innerHTML = state.wordSaving ? '저장하는 중...' : (filled === total ? `<span aria-hidden="true">✓</span> ${next}` : `${total > 1 ? `${filled}/${total} · ` : ''}모두 써 주세요`);
+  function finishConfidence() {
+    if (state.confPhase === 'before') openRun(state.studentId, true); else openResult();
   }
 
   // ---- 바르지 않은 말 거르기 ----
@@ -328,41 +337,6 @@
     if (names.some((n) => bare.includes(n))) return '친구 이름은 쓰지 않아요. 내 생각을 낱말로 써 주세요.';
     return null;
   }
-
-  async function saveWord(event) {
-    event.preventDefault();
-    const student = getStudent(state.studentId);
-    if (!student || state.wordSaving) return;
-    const items = state.wordKeys.map((key) => ({ phase: key, word: wordValue(key) }));
-    if (items.some((it) => !it.word)) return;
-    // 질문마다 바르지 않은 말을 먼저 거르고, 걸린 칸 아래에 안내를 띄웁니다.
-    let firstBad = null;
-    items.forEach((it) => {
-      const field = $('word-fields').querySelector(`[data-word-key="${it.phase}"]`);
-      const problem = wordProblem(it.word);
-      field.querySelector('.word-error').hidden = !problem;
-      field.querySelector('.word-error').textContent = problem || '';
-      if (problem && !firstBad) firstBad = field.querySelector('input');
-    });
-    if (firstBad) { firstBad.select(); return; }
-    state.wordSaving = true;
-    renderWord();
-    try {
-      const res = await postJson({ type: 'speed_word', class: student.class, items });
-      if (!res.ok) throw new Error(res.error?.message);
-      myWords[student.student_id] = { ...(myWords[student.student_id] || {}), ...Object.fromEntries(items.map((it) => [it.phase, it.word])) };
-      state.wordSaving = false;
-      finishWords();
-      showToast('저장했어요! 우리 반 단어 구름에 모여요.');
-    } catch (error) {
-      console.warn('단어 저장 실패', error);
-      state.wordSaving = false;
-      renderWord();
-      $('word-skip').hidden = false;
-      showToast('저장하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.');
-    }
-  }
-
 
   function confidenceText(studentId) {
     const c = confidence[studentId] || {};
@@ -818,10 +792,8 @@
     else if (action === 'cancel') { state.timer = 'idle'; state.elapsedMs = 0; state.pending = null; setScreen('run'); renderRun(); showToast('저장하지 않았어요.'); }
     else if (action === 'open-result') openResult();
     else if (action === 'back-run') openRun(state.studentId);
-    else if (action === 'conf-save') saveConfidence();
-    else if (action === 'conf-skip') skipConfidence();
+        else if (action === 'conf-skip') skipConfidence();
     else if (action === 'conf-after') openConfidence(state.studentId, 'after');
-    else if (action === 'word-skip') finishWords();
     else if (action === 'coach') coach();
     else if (action === 'go-pick') { setScreen('pick'); renderPick(); }
     else if (action === 'go-board') openBoard();
@@ -845,9 +817,9 @@
   $('word-fields').addEventListener('input', (event) => {
     const err = event.target.closest('.word-field')?.querySelector('.word-error');
     if (err) err.hidden = true;
-    renderWord();
+    renderConfidence();
   });
-  $('word-form').addEventListener('submit', saveWord);
+  $('conf-form').addEventListener('submit', saveConfidence);
   $('pin-form').addEventListener('submit', unlockTeacher);
   $('reset-form').addEventListener('submit', resetSpeed);
 
