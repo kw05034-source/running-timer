@@ -47,6 +47,8 @@
   const escapeHtml = (v) => String(v).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
   const speedOf = (sec) => DISTANCE_M / Number(sec);
   const fmtSpeed = (v) => `${v.toFixed(2)} m/s`;
+  // 기록(초)과 평균속력을 같이 보여 줍니다. 한 사람 기록은 초 = 40m ÷ 평균속력이에요.
+  const fmtBoth = (v, sec = DISTANCE_M / v) => `${sec.toFixed(2)}초 · ${fmtSpeed(v)}`;
 
   function readSteps() {
     try { return JSON.parse(localStorage.getItem(STEPS_KEY) || '{}') || {}; } catch (e) { return {}; }
@@ -193,7 +195,7 @@
     const best = bestSpeeds(student.student_id);
     $('methods').innerHTML = METHODS.map((m) => `
       <button type="button" class="method-option${state.method === m.key ? ' is-selected' : ''}" data-method="${m.key}" ${state.timer === 'running' ? 'disabled' : ''}>
-        <span><strong>${m.label}</strong> <small>방향 전환 ${m.turns}번</small></span>${best[m.key] ? `<span class="done">✓ ${fmtSpeed(best[m.key])}</span>` : ''}</button>`).join('');
+        <span><strong>${m.label}</strong> <small>방향 전환 ${m.turns}번</small></span>${best[m.key] ? `<span class="done">✓ ${fmtBoth(best[m.key])}</span>` : ''}</button>`).join('');
     const seconds = state.timer === 'running' ? (performance.now() - state.startedAt) / 1000 : state.elapsedMs / 1000;
     $('digits').innerHTML = `${seconds.toFixed(2).padStart(5, '0')}<small>초</small>`;
     $('timer-card').classList.toggle('is-running', state.timer === 'running');
@@ -492,14 +494,15 @@
   }
 
   // ---- 내 결과 ----
-  function barsHtml(values) {
+  // secs: 반 평균처럼 초를 따로 구한 경우에만 넘깁니다. 없으면 40m ÷ 평균속력.
+  function barsHtml(values, secs = {}) {
     const max = Math.max(...METHODS.map((m) => values[m.key] || 0), 0.01);
     const bestKey = METHODS.reduce((b, m) => ((values[m.key] || 0) > (values[b] || 0) ? m.key : b), METHODS[0].key);
     return METHODS.map((m) => {
       const v = values[m.key];
       return `<div class="bar${v && m.key === bestKey ? ' best' : ''}"><span>${m.label}</span>
         <span class="track"><span class="fill" style="width:${v ? (v / max) * 100 : 0}%"></span></span>
-        <span class="val">${v ? fmtSpeed(v) : '아직 안 뜀'}</span></div>`;
+        <span class="val">${v ? `<b>${(secs[m.key] || DISTANCE_M / v).toFixed(2)}초</b><small>${fmtSpeed(v)}</small>` : '아직 안 뜀'}</span></div>`;
     }).join('');
   }
 
@@ -565,12 +568,16 @@
   // ---- 우리 반 현황 ----
   function classSummary() {
     const list = students.filter((s) => s.class === state.classNo);
-    const sums = {}; const counts = {};
+    const sums = {}; const counts = {}; const secSums = {};
     const ranking = [];
     list.forEach((s) => {
       const best = bestSpeeds(s.student_id);
       METHODS.forEach((m) => {
-        if (best[m.key]) { sums[m.key] = (sums[m.key] || 0) + best[m.key]; counts[m.key] = (counts[m.key] || 0) + 1; }
+        if (best[m.key]) {
+          sums[m.key] = (sums[m.key] || 0) + best[m.key];
+          secSums[m.key] = (secSums[m.key] || 0) + DISTANCE_M / best[m.key];
+          counts[m.key] = (counts[m.key] || 0) + 1;
+        }
       });
       const top = Math.max(0, ...Object.values(best));
       if (top > 0) {
@@ -578,18 +585,18 @@
         ranking.push({ name: s.name, group: s.group_or_team, speed: top, method: METHODS.find((m) => m.key === topKey).label });
       }
     });
-    const avg = {};
-    METHODS.forEach((m) => { if (counts[m.key]) avg[m.key] = sums[m.key] / counts[m.key]; });
+    const avg = {}; const avgSec = {};
+    METHODS.forEach((m) => { if (counts[m.key]) { avg[m.key] = sums[m.key] / counts[m.key]; avgSec[m.key] = secSums[m.key] / counts[m.key]; } });
     ranking.sort((a, b) => b.speed - a.speed);
-    return { avg, counts, ranking, runners: ranking.length };
+    return { avg, avgSec, counts, ranking, runners: ranking.length };
   }
 
   function renderBoard() {
     const sum = classSummary();
     $('board-title').textContent = `${state.classNo}반 현황`;
-    $('board-bars').innerHTML = barsHtml(sum.avg);
+    $('board-bars').innerHTML = barsHtml(sum.avg, sum.avgSec);
     $('rank-body').innerHTML = sum.ranking.length
-      ? sum.ranking.map((r, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(r.name)} <span class="muted">${escapeHtml(r.group)}</span></td><td>${r.method}</td><td class="num">${fmtSpeed(r.speed)}</td></tr>`).join('')
+      ? sum.ranking.map((r, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(r.name)} <span class="muted">${escapeHtml(r.group)}</span></td><td>${r.method}</td><td class="num">${fmtBoth(r.speed)}</td></tr>`).join('')
       : '<tr><td class="muted" colspan="4">아직 기록이 없어요.</td></tr>';
     const scores = students.filter((s) => s.class === state.classNo).map((s) => confidence[s.student_id] || {});
     const mean = (list) => (list.length ? (list.reduce((a, b) => a + b, 0) / list.length).toFixed(1) : null);
@@ -631,6 +638,7 @@
     const classes = [...new Set(students.map((s) => s.class))].sort((a, b) => a - b);
     $('teacher-class-tabs').innerHTML = classes.map((c) => `<button type="button" class="class-tab${c === state.classNo ? ' is-selected' : ''}" data-class="${c}">${c}반</button>`).join('');
     $('teacher-title').textContent = `${state.classNo}반 교사 현황`;
+    if ($('reset-form').hidden) $('reset-class').innerHTML = classes.map((c) => `<option value="${c}"${c === state.classNo ? ' selected' : ''}>${c}반만</option>`).join('') + '<option value="all">모든 반</option>';
     const rows = teacherRows();
     const mean = (list) => (list.length ? (list.reduce((a, b) => a + b, 0) / list.length).toFixed(1) : '—');
     const befores = rows.map((r) => r.c.before).filter(Boolean);
@@ -641,7 +649,7 @@
       `수업 후 자신감까지 <strong>${afters.length}</strong>명`,
       `자신감 평균 <strong>${mean(befores)} → ${mean(afters)}</strong>점`
     ].map((t) => `<span class="t-chip">${t}</span>`).join('');
-    const cell = (v) => (v ? v.toFixed(2) : '<span class="muted">—</span>');
+    const cell = (v) => (v ? `${(DISTANCE_M / v).toFixed(2)}초<small>${v.toFixed(2)} m/s</small>` : '<span class="muted">—</span>');
     $('teacher-rows').innerHTML = rows.length ? rows.map((r) => {
       const diff = r.c.before && r.c.after ? r.c.after - r.c.before : null;
       return `<tr>
@@ -679,9 +687,50 @@
     }
   }
 
+  // 2차시 기록 초기화: 속력 탐구 기록(Records의 speed_*)과 자신감·단어 시트만 지웁니다. 1차시 기록은 그대로예요.
+  async function resetSpeed(event) {
+    event.preventDefault();
+    const pin = $('reset-pin').value.trim();
+    const target = $('reset-class').value;
+    const classNo = target === 'all' ? null : Number(target);
+    const fail = (msg) => { $('reset-error').textContent = msg; $('reset-error').hidden = false; };
+    if (!pin) { fail('선생님 번호를 넣어 주세요.'); return; }
+    let result;
+    try {
+      // 예전 Apps Script는 scope를 모르고 1차시 기록을 지우므로, 새 배포인지 먼저 확인합니다.
+      const info = await (await fetch(SHEETS_ENDPOINT, { cache: 'no-store' })).json();
+      if (!(info.features || []).includes('reset_scope')) {
+        fail('Apps Script를 새 버전으로 배포한 뒤에 2차시만 따로 지울 수 있어요. 아무것도 지우지 않았어요.');
+        return;
+      }
+      result = await postJson(classNo ? { type: 'reset_class', class: classNo, pin, scope: 'speed' } : { type: 'reset', pin, scope: 'speed' });
+    } catch (error) {
+      fail('인터넷 연결을 확인하고 다시 눌러 주세요.'); return;
+    }
+    if (!result.ok) {
+      fail(result.error?.code === 'INVALID_PIN' ? '번호가 맞지 않아요.' : '초기화하지 못했어요. 잠시 후 다시 눌러 주세요.');
+      return;
+    }
+    if (result.scope !== 'speed') {
+      fail('Apps Script를 새 버전으로 배포해야 2차시만 따로 지울 수 있어요. 시트의 백업 탭을 확인해 주세요.');
+      return;
+    }
+    const inTarget = (id) => !classNo || getStudent(id)?.class === classNo;
+    Object.keys(confidence).filter(inTarget).forEach((id) => { delete confidence[id]; });
+    Object.keys(myWords).filter(inTarget).forEach((id) => { delete myWords[id]; });
+    const steps = readSteps();
+    Object.keys(steps).filter(inTarget).forEach((id) => { delete steps[id]; });
+    writeSteps(steps);
+    $('reset-pin').value = '';
+    $('reset-form').hidden = true;
+    await Promise.all([refreshRecords(), refreshConfidence()]);
+    renderTeacher();
+    showToast(`${classNo ? `${classNo}반` : '모든 반'} 2차시 기록을 지웠어요. 지운 내용은 시트의 '백업' 탭에 있어요.`);
+  }
+
   function teacherCsv() {
-    const head = ['번호', '이름', '조', '수업 전 자신감', ...METHODS.map((m) => `${m.label} 평균속력(m/s)`), '보폭(m)', '달린 횟수', '수업 후 자신감', '자신감 변화'];
-    const lines = teacherRows().map((r) => [r.s.number, r.s.name, r.s.group_or_team, r.c.before || '', ...METHODS.map((m) => (r.best[m.key] ? r.best[m.key].toFixed(2) : '')), r.stride ? r.stride.toFixed(2) : '', r.runs, r.c.after || '', r.c.before && r.c.after ? r.c.after - r.c.before : '']);
+    const head = ['번호', '이름', '조', '수업 전 자신감', ...METHODS.flatMap((m) => [`${m.label} 기록(초)`, `${m.label} 평균속력(m/s)`]), '보폭(m)', '달린 횟수', '수업 후 자신감', '자신감 변화'];
+    const lines = teacherRows().map((r) => [r.s.number, r.s.name, r.s.group_or_team, r.c.before || '', ...METHODS.flatMap((m) => (r.best[m.key] ? [(DISTANCE_M / r.best[m.key]).toFixed(2), r.best[m.key].toFixed(2)] : ['', ''])), r.stride ? r.stride.toFixed(2) : '', r.runs, r.c.after || '', r.c.before && r.c.after ? r.c.after - r.c.before : '']);
     return [head, ...lines].map((row) => row.join('\t')).join('\n');
   }
 
@@ -778,6 +827,8 @@
     else if (action === 'go-pick') { setScreen('pick'); renderPick(); }
     else if (action === 'go-board') openBoard();
     else if (action === 'go-teacher') openTeacher();
+    else if (action === 'reset-open') { $('reset-form').hidden = false; $('reset-error').hidden = true; $('reset-pin').focus(); }
+    else if (action === 'reset-close') $('reset-form').hidden = true;
     else if (action === 'lock-teacher') { teacherUnlocked = false; try { sessionStorage.removeItem(TEACHER_UNLOCK_KEY); } catch (e) { /* 무시 */ } renderTeacher(); }
     else if (action === 'teacher-csv') navigator.clipboard.writeText(teacherCsv()).then(() => showToast('복사했어요. 스프레드시트에 붙여 넣으세요.'), () => showToast('복사하지 못했어요.'));
     else if (action === 'class-ai') classAi();
@@ -787,6 +838,7 @@
   $('word-input').addEventListener('input', () => { $('word-error').hidden = true; renderWord(); });
   $('word-form').addEventListener('submit', saveWord);
   $('pin-form').addEventListener('submit', unlockTeacher);
+  $('reset-form').addEventListener('submit', resetSpeed);
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' || event.repeat || state.screen !== 'run') return;

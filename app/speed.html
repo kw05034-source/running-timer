@@ -19,6 +19,12 @@
   .pin-row { margin-top: 16px; display: flex; gap: 10px; max-width: 420px; }
   .pin-row input { flex: 1; min-width: 0; min-height: 56px; padding: 0 18px; border: 2px solid var(--line); border-radius: 14px; font: inherit; font-size: 20px; }
   .pin-error { margin: 10px 0 0; color: #c2410c; font-weight: 800; }
+  .secondary-button.danger { color: #c2410c; border-color: #f5c4b3; }
+  .primary-button.danger { background: #e2552b; color: #fff; padding: 0 18px; }
+  .reset-box { margin-top: 16px; padding: 18px; border: 2px solid #f5c4b3; border-radius: 16px; background: #fff7f3; }
+  .reset-box p { margin: 0; color: var(--navy-900); font-size: 14px; line-height: 1.6; }
+  .reset-box .pin-row { max-width: none; flex-wrap: wrap; }
+  .reset-box select { min-height: 56px; padding: 0 14px; border: 2px solid var(--line); border-radius: 14px; font: inherit; font-size: 16px; background: #fff; }
   .t-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
   .t-chip { padding: 8px 14px; border-radius: 999px; background: var(--canvas); color: var(--muted); font-size: 14px; font-weight: 800; }
   .t-chip strong { color: var(--navy-900); }
@@ -29,6 +35,7 @@
   .t-table .num { text-align: right; font-family: 'Cascadia Mono', 'Roboto Mono', monospace; }
   .t-table th.num { font-family: inherit; }
   .t-table .muted { color: var(--muted); font-size: 12px; }
+  .t-table td.num small { display: block; color: var(--muted); font-size: 11px; }
   .t-table .up { color: #0eae89; font-weight: 800; }
   .t-table .down { color: #c2410c; font-weight: 800; }
   .t-progress { padding: 3px 10px; border-radius: 999px; background: var(--canvas); font-weight: 800; }
@@ -75,7 +82,9 @@
   .bar .track { height: 24px; border-radius: 8px; background: #eef2f7; overflow: hidden; }
   .bar .fill { display: block; height: 100%; border-radius: 8px; background: var(--blue-500); }
   .bar.best .fill { background: var(--orange-500); }
-  .bar .val { text-align: right; font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-weight: 500; }
+  .bar .val { text-align: right; font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-weight: 500; line-height: 1.25; }
+  .bar .val b { display: block; font-weight: 700; }
+  .bar .val small { display: block; color: var(--muted); font-size: 12px; }
   .ai-button { min-height: 52px; padding: 0 22px; border: 0; border-radius: 10px; background: var(--navy-900); color: #fff; font-size: 14px; font-weight: 800; }
   .ai-button:disabled { opacity: 0.55; }
   .coach { margin-top: 14px; padding: 16px 18px; border-radius: 14px; background: var(--blue-100); color: var(--navy-900); font-size: 17px; line-height: 1.6; font-weight: 600; }
@@ -364,7 +373,7 @@
         <p>모두 같은 40m예요. 방향을 바꾸는 횟수만 달라요.</p>
       </div>
       <div class="panel">
-        <h2>방식별 우리 반 평균속력</h2>
+        <h2>방식별 우리 반 평균 기록과 평균속력</h2>
         <div class="bars" id="board-bars"></div>
         <div class="link-row">
           <button type="button" class="ai-button" id="class-ai-btn" data-action="class-ai">🤖 AI 반 전체 분석</button>
@@ -402,14 +411,25 @@
           <a class="secondary-button" href="./words.html?show=1" target="_blank" rel="noopener">☁ 단어 구름 열기 ↗</a>
           <button type="button" class="secondary-button" data-action="teacher-csv">표를 CSV로 복사</button>
           <button type="button" class="secondary-button" data-action="lock-teacher">🔒 잠그기</button>
+          <button type="button" class="secondary-button danger" data-action="reset-open">2차시 기록 초기화…</button>
         </div>
+        <form class="reset-box" id="reset-form" autocomplete="off" hidden>
+          <p><b>2차시 속력 탐구 기록만 지워요.</b> 시트에서 고른 반의 속력 탐구 기록(Records의 5m×4·10m×2·20m×1), 자신감(SpeedConfidence), 단어(SpeedWords)를 지워요. 1차시 기록과 학생 명단은 그대로이고, 지운 내용은 '백업' 탭으로 복사해 둬요.</p>
+          <div class="pin-row">
+            <select id="reset-class" aria-label="지울 반"></select>
+            <input id="reset-pin" type="password" inputmode="numeric" maxlength="12" aria-label="선생님 번호" placeholder="선생님 번호">
+            <button type="submit" class="primary-button danger">정말 지우기</button>
+            <button type="button" class="secondary-button" data-action="reset-close">취소</button>
+          </div>
+          <p class="pin-error" id="reset-error" hidden></p>
+        </form>
         <div class="t-table-wrap">
           <table class="t-table">
-            <thead><tr><th>번호</th><th>이름</th><th class="num">수업 전 자신감</th><th class="num">5m×4</th><th class="num">10m×2</th><th class="num">20m×1</th><th class="num">보폭</th><th class="num">달린 횟수</th><th class="num">수업 후 자신감</th><th class="num">변화</th><th class="num">단계</th></tr></thead>
+            <thead><tr><th>번호</th><th>이름</th><th class="num">수업 전 자신감</th><th class="num">5m×4<br><small>초 · m/s</small></th><th class="num">10m×2<br><small>초 · m/s</small></th><th class="num">20m×1<br><small>초 · m/s</small></th><th class="num">보폭</th><th class="num">달린 횟수</th><th class="num">수업 후 자신감</th><th class="num">변화</th><th class="num">단계</th></tr></thead>
             <tbody id="teacher-rows"></tbody>
           </table>
         </div>
-        <p class="panel-note">평균속력은 방식별 가장 빠른 기록(m/s)이에요. 보폭은 걸음 수를 입력한 크롬북에서만 보여요.</p>
+        <p class="panel-note">방식별 가장 빠른 기록(초)과 그때의 평균속력(m/s)이에요. 보폭은 걸음 수를 입력한 크롬북에서만 보여요.</p>
       </div>
     </section>
   </main>

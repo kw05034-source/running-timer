@@ -61,6 +61,8 @@ var GROWTH_HEADERS = [
 var GROWTH_FOCUS_VALUES = ['', 'start', 'turn', 'finish'];
 
 var AVAILABLE_ACTIONS = ['students', 'records', 'growth', 'speed_confidence', 'speed_words', 'health'];
+// 화면이 이 배포가 무엇을 할 수 있는지 확인할 때 씁니다. reset_scope: 1차시·2차시를 따로 초기화
+var FEATURES = ['reset_scope'];
 
 // 전체 초기화: 선생님 화면의 번호(성장판과 같은 번호)를 SHA-256으로 비교합니다.
 var RESET_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
@@ -108,7 +110,8 @@ function doGet(e) {
       return jsonResponse_({
         ok: true,
         message: '사용 가능한 action을 지정하세요.',
-        available_actions: AVAILABLE_ACTIONS
+        available_actions: AVAILABLE_ACTIONS,
+        features: FEATURES
       });
     }
 
@@ -717,15 +720,74 @@ function upgradeGrowthHeaders_(sheet) {
 }
 
 /**
- * 전체 초기화: Records·Growth 시트의 기록을 백업 탭으로 복사한 뒤 비웁니다 (1행 제목은 남김).
- * Students 시트는 건드리지 않습니다.
+ * 초기화는 차시별로 따로 합니다. scope가 없으면 1차시입니다.
+ * - 1차시(lesson1): Records의 1차시 기록(activity_type이 speed_로 시작하지 않는 줄)과 Growth 시트
+ * - 2차시(speed): Records의 속력 탐구 기록(speed_5x4/10x2/20x1)과 SpeedConfidence·SpeedWords 시트
+ * 지우기 전에 해당 시트를 백업 탭으로 복사합니다. Students 시트와 다른 차시 기록은 건드리지 않습니다.
+ * 1차시를 지울 때만 reset 표시를 남겨 1차시 화면(app.js·growth.js)이 기기에 남은 기록도 비우게 합니다.
  */
-function resetAll_(request) {
+function resetScope_(request) {
+  return request && request.scope === 'speed' ? 'speed' : 'lesson1';
+}
+
+function resetTargets_(scope) {
+  var isSpeedRecord = function (row, header) {
+    return String(row[header.indexOf('activity_type')]).indexOf('speed_') === 0;
+  };
+  if (scope === 'speed') {
+    return [
+      { name: RECORDS_SHEET_NAME, match: isSpeedRecord },
+      { name: SPEED_CONFIDENCE_SHEET_NAME },
+      { name: SPEED_WORDS_SHEET_NAME }
+    ];
+  }
+  return [
+    { name: RECORDS_SHEET_NAME, match: function (row, header) { return !isSpeedRecord(row, header); } },
+    { name: GROWTH_SHEET_NAME }
+  ];
+}
+
+// 조건에 맞는 줄만 지우고 나머지 줄은 위로 당겨 다시 씁니다. 지운 줄 수를 돌려줍니다.
+function clearMatchingRows_(spreadsheet, target, classNo, backupLabel) {
+  var sheet = spreadsheet.getSheetByName(target.name);
+  var lastRow = sheet ? sheet.getLastRow() : 0;
+  if (lastRow <= 1) {
+    return 0;
+  }
+  var lastColumn = sheet.getLastColumn();
+  var header = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+  var classIndex = header.indexOf('class');
+  if (classNo && classIndex < 0) {
+    throwAppError_('SHEET_HEADER_MISMATCH', target.name + ' 시트에 class 열이 없습니다.', 500);
+  }
+  if (target.match && header.indexOf('activity_type') < 0) {
+    throwAppError_('SHEET_HEADER_MISMATCH', target.name + ' 시트에 activity_type 열이 없습니다.', 500);
+  }
+  var range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
+  var rows = range.getValues();
+  var keep = rows.filter(function (row) {
+    var inClass = !classNo || Number(row[classIndex]) === classNo;
+    var matches = !target.match || target.match(row, header);
+    return !(inClass && matches);
+  });
+  var cleared = rows.length - keep.length;
+  if (!cleared) {
+    return 0;
+  }
+  sheet.copyTo(spreadsheet).setName('백업 ' + backupLabel + ' ' + target.name);
+  range.clearContent();
+  if (keep.length) {
+    sheet.getRange(2, 1, keep.length, lastColumn).setValues(keep);
+  }
+  return cleared;
+}
+
+function runReset_(request, classNo) {
   var pin = request && typeof request.pin === 'string' ? request.pin : '';
   if (!pin || sha256Hex_(pin) !== RESET_PIN_SHA256) {
     throwAppError_('INVALID_PIN', '선생님 번호가 맞지 않습니다.', 403);
   }
-
+  var scope = resetScope_(request);
   var spreadsheet = getSpreadsheet_();
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) {
@@ -739,102 +801,47 @@ function resetAll_(request) {
   try {
     var now = new Date();
     var stamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMdd HHmmss');
+    var label = (scope === 'speed' ? '2차시 ' : '1차시 ') + (classNo ? classNo + '반 ' : '') + stamp;
     var cleared = {};
-    [RECORDS_SHEET_NAME, GROWTH_SHEET_NAME].forEach(function (name) {
-      var sheet = spreadsheet.getSheetByName(name);
-      var lastRow = sheet ? sheet.getLastRow() : 0;
-      cleared[name] = Math.max(0, lastRow - 1);
-      if (lastRow <= 1) {
-        return;
+    resetTargets_(scope).forEach(function (target) {
+      cleared[target.name] = clearMatchingRows_(spreadsheet, target, classNo, label);
+    });
+
+    var result = { ok: true, scope: scope, cleared: cleared };
+    if (classNo) {
+      result['class'] = classNo;
+    }
+    if (scope === 'lesson1') {
+      var resetAt = now.toISOString();
+      var properties = PropertiesService.getScriptProperties();
+      if (classNo) {
+        var marks = readClassResets_();
+        marks[String(classNo)] = resetAt;
+        properties.setProperty(RESET_CLASSES_PROPERTY, JSON.stringify(marks));
+        result.reset_classes = marks;
+      } else {
+        properties.setProperty(RESET_AT_PROPERTY, resetAt);
       }
-      sheet.copyTo(spreadsheet).setName('백업 ' + name + ' ' + stamp);
-      sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
-    });
-
-    var resetAt = now.toISOString();
-    PropertiesService.getScriptProperties().setProperty(RESET_AT_PROPERTY, resetAt);
-
-    return jsonResponse_({
-      ok: true,
-      reset_at: resetAt,
-      cleared: cleared
-    });
+      result.reset_at = resetAt;
+    }
+    return jsonResponse_(result);
   } finally {
     lock.releaseLock();
   }
 }
 
-/**
- * 반별 초기화: Records·Growth 시트를 백업 탭으로 복사한 뒤, class 열이 고른 반인 줄만 지웁니다.
- * 다른 반 기록과 Students 시트는 그대로 둡니다.
- */
+/** 전체 초기화: 고른 차시(scope)의 모든 반 기록을 지웁니다. */
+function resetAll_(request) {
+  return runReset_(request, null);
+}
+
+/** 반별 초기화: 고른 차시(scope)에서 class 열이 고른 반인 줄만 지웁니다. */
 function resetClass_(request) {
-  var pin = request && typeof request.pin === 'string' ? request.pin : '';
-  if (!pin || sha256Hex_(pin) !== RESET_PIN_SHA256) {
-    throwAppError_('INVALID_PIN', '선생님 번호가 맞지 않습니다.', 403);
-  }
-  var classNo = Number(request.class);
+  var classNo = Number(request && request['class']);
   if (!(classNo >= 1 && classNo <= 30 && Math.floor(classNo) === classNo)) {
     throwAppError_('INVALID_REQUEST', '지울 반 번호가 올바르지 않습니다.', 400);
   }
-
-  var spreadsheet = getSpreadsheet_();
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) {
-    throwAppError_(
-      'LOCK_TIMEOUT',
-      '동시 저장이 많아 잠금을 획득하지 못했습니다. 잠시 후 다시 시도하세요.',
-      503
-    );
-  }
-
-  try {
-    var now = new Date();
-    var stamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMdd HHmmss');
-    var cleared = {};
-    [RECORDS_SHEET_NAME, GROWTH_SHEET_NAME].forEach(function (name) {
-      var sheet = spreadsheet.getSheetByName(name);
-      var lastRow = sheet ? sheet.getLastRow() : 0;
-      cleared[name] = 0;
-      if (lastRow <= 1) {
-        return;
-      }
-      var lastColumn = sheet.getLastColumn();
-      var classIndex = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0].indexOf('class');
-      if (classIndex < 0) {
-        throwAppError_('SHEET_HEADER_MISMATCH', name + ' 시트에 class 열이 없습니다.', 500);
-      }
-      var range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
-      var rows = range.getValues();
-      var keep = rows.filter(function (row) {
-        return Number(row[classIndex]) !== classNo;
-      });
-      cleared[name] = rows.length - keep.length;
-      if (!cleared[name]) {
-        return;
-      }
-      sheet.copyTo(spreadsheet).setName('백업 ' + classNo + '반 ' + name + ' ' + stamp);
-      range.clearContent();
-      if (keep.length) {
-        sheet.getRange(2, 1, keep.length, lastColumn).setValues(keep);
-      }
-    });
-
-    var resetAt = now.toISOString();
-    var marks = readClassResets_();
-    marks[String(classNo)] = resetAt;
-    PropertiesService.getScriptProperties().setProperty(RESET_CLASSES_PROPERTY, JSON.stringify(marks));
-
-    return jsonResponse_({
-      ok: true,
-      class: classNo,
-      reset_at: resetAt,
-      reset_classes: marks,
-      cleared: cleared
-    });
-  } finally {
-    lock.releaseLock();
-  }
+  return runReset_(request, classNo);
 }
 
 /**
