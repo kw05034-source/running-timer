@@ -2,48 +2,33 @@
   'use strict';
 
   // ---- 단어 구름 ----
-  // 수업 처음과 끝에 같은 질문을 하고, 학생들이 낸 단어를 구름으로 보여 줍니다.
+  // 학생들은 속력 탐구 마지막 단계(수업 후 자신감 다음)에서 '내가 생각하는 자기효능감'을 써서 보냅니다.
+  // 이 화면은 그 단어를 반별 구름으로 보여 주기만 합니다. (입력은 speed.js의 openEfficacy)
   // 단원 탐구 진술(동작의 개선은 기능 발달을 가져오고 자기효능감에 영향을 준다)과 가까운 단어는 색으로 강조합니다.
-  // 단어는 SpeedWords 시트에 한 줄씩 저장하고, 오늘 낸 단어만 보여 줍니다.
+  // 단어는 SpeedWords 시트에 phase 'after'로 저장되고, 오늘 낸 단어만 보여 줍니다.
   const SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbw5mlmLxwSTXB7q7lsbqlGjWfkU9aTUwmwFSKeiK_Y9OyDX-eqx51AAkayE6qtAkCQS/exec';
-  const QUESTION = '같은 거리를 더 빨리 달리려면 무엇이 중요할까요?';
-  const PHASES = [
-    { key: 'before', label: '수업 처음' },
-    { key: 'after', label: '수업 끝' },
-    { key: 'compare', label: '처음 ↔ 끝 비교' }
-  ];
+  const QUESTION = '내가 생각하는 자기효능감은?';
+  const PHASE = 'after';
   // 탐구 진술의 세 부분과 가까운 단어. 띄어쓰기를 뺀 단어에 아래 말이 들어 있으면 그 묶음으로 셉니다.
   const GROUPS = [
     { key: 'move', cls: 'g-move', color: 'var(--blue-500)', label: '동작 개선', sub: '출발·방향 전환·보폭·효율',
       keys: ['동작', '자세', '개선', '효율', '출발', '전환', '방향', '턴', '회전', '낮추', '낮게', '숙이', '기울', '보폭', '보수', '걸음', '팔치기', '팔', '리듬', '기술', '감속', '가속', '멈추', '멈춤', '브레이크', '코너', '반환'] },
     { key: 'skill', cls: 'g-skill', color: '#0eae89', label: '기능 발달', sub: '속력·기록·페이스',
-      // '빨리'·'빠르게'는 질문에 이미 있는 말이라 세지 않습니다.
       keys: ['속력', '속도', '기록', '향상', '발달', '성장', '페이스', '꾸준', '일정', '유지', '지구력', '스피드'] },
     { key: 'self', cls: 'g-self', color: '#f07b2f', label: '자기효능감', sub: '자신감·할 수 있다',
       keys: ['자신감', '효능감', '할수있', '해낼', '믿음', '성취', '뿌듯', '용기', '도전', '포기하지', '자신'] }
   ];
   const POLL_MS = 5000;
   const CLASS_KEY = 'movement-records-selected-class-v1';
-  const PHASE_KEY = 'speed-words-phase-v1';
 
   let words = [];
-  // 시트에 아직 안 들어간 단어(보내기 실패)는 이 화면에만 보여 줍니다.
-  let pending = [];
   // highlight: 탐구 진술 단어만 색으로 (끄면 멘티미터처럼 모든 단어가 여러 색)
-  const state = { classNo: 1, classes: [1], phase: 'before', sending: false, highlight: false };
+  const state = { classNo: 1, classes: [1], highlight: false };
 
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (v) => String(v).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
   const normalize = (w) => String(w).replace(/\s+/g, ' ').trim();
   const compact = (w) => normalize(w).replace(/ /g, '').toLowerCase();
-
-  let toastTimer = null;
-  function showToast(message) {
-    window.clearTimeout(toastTimer);
-    $('toast').textContent = message;
-    $('toast').hidden = false;
-    toastTimer = window.setTimeout(() => { $('toast').hidden = true; }, 3200);
-  }
 
   function groupOf(word) {
     const c = compact(word);
@@ -56,7 +41,7 @@
   };
 
   function wordsFor(phase) {
-    return [...words, ...pending].filter((w) => Number(w.class) === state.classNo && w.phase === phase && isToday(w.created_at));
+    return words.filter((w) => Number(w.class) === state.classNo && w.phase === phase && isToday(w.created_at));
   }
 
   // 같은 단어(띄어쓰기 무시)를 묶어 개수를 셉니다.
@@ -166,38 +151,16 @@
 
   function render() {
     $('class-tabs').innerHTML = state.classes.map((c) => `<button type="button" class="class-tab${c === state.classNo ? ' is-selected' : ''}" role="tab" aria-selected="${c === state.classNo}" data-class="${c}">${c}반</button>`).join('');
-    $('phase-tabs').innerHTML = PHASES.map((p) => `<button type="button" class="group-tab${p.key === state.phase ? ' is-selected' : ''}" role="tab" aria-selected="${p.key === state.phase}" data-phase="${p.key}">${p.label}</button>`).join('');
-    const compare = state.phase === 'compare';
-    $('ask-view').hidden = compare;
-    $('compare-view').hidden = !compare;
-    if (compare) {
-      const before = wordsFor('before');
-      const after = wordsFor('after');
-      drawCloud($('before-cloud'), before, true);
-      drawCloud($('after-cloud'), after, true);
-      $('before-stats').innerHTML = statsHtml(before);
-      $('after-stats').innerHTML = statsHtml(after);
-      const b = statsOf(before);
-      const a = statsOf(after);
-      $('growth-row').innerHTML = GROUPS.map((g) => `<div class="growth-card">
-          <b style="color:${g.color}">${g.label}</b><small>${g.sub}</small>
-          <div class="nums">${b.byGroup[g.key]}<em> → </em>${a.byGroup[g.key]}<em>개</em></div>
-        </div>`).join('');
-      $('legend-compare').innerHTML = legendHtml();
-      return;
-    }
-    const phase = PHASES.find((p) => p.key === state.phase);
-    const list = wordsFor(state.phase);
-    $('phase-label').textContent = `${state.classNo}반 · ${phase.label}`;
+    const list = wordsFor(PHASE);
+    $('phase-label').textContent = `${state.classNo}반 · 속력 탐구를 마치며`;
     $('question-text').textContent = QUESTION;
-    $('cloud-title').textContent = `${state.classNo}반 ${phase.label} 단어 구름`;
+    $('cloud-title').textContent = `${state.classNo}반 자기효능감 단어 구름`;
     drawCloud($('cloud'), list, state.highlight);
     $('highlight-btn').textContent = state.highlight ? '🎨 모든 단어 색으로 보기' : '🔍 탐구 진술 단어 찾기';
     $('highlight-btn').classList.toggle('is-on', state.highlight);
     $('legend').hidden = !state.highlight;
     $('cloud-stats').innerHTML = statsHtml(list);
     $('legend').innerHTML = legendHtml();
-    $('send-btn').disabled = state.sending;
   }
 
   // ---- 서버 ----
@@ -209,38 +172,6 @@
       render();
     } catch (error) {
       console.warn('단어를 불러오지 못했어요.', error);
-    }
-  }
-
-  async function send(word) {
-    const body = { type: 'speed_word', class: state.classNo, phase: state.phase, word };
-    const response = await fetch(SHEETS_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
-    return response.json();
-  }
-
-  async function submitWord(event) {
-    event.preventDefault();
-    const word = normalize($('word-input').value);
-    if (!word || state.sending) return;
-    state.sending = true;
-    render();
-    const local = { created_at: new Date().toISOString(), class: state.classNo, phase: state.phase, word };
-    try {
-      const res = await send(word);
-      if (!res.ok) throw new Error(res.error?.message || '저장 실패');
-      words.push(local);
-      $('word-input').value = '';
-      const g = groupOf(word);
-      showToast(g ? `보냈어요! "${word}" → 탐구 진술의 ${g.label} 단어예요.` : '보냈어요! 다음 친구에게 넘겨 주세요.');
-    } catch (error) {
-      console.warn('단어 저장 실패', error);
-      pending.push(local);
-      $('word-input').value = '';
-      showToast('시트에 저장하지 못해서 이 화면에만 보여요. 인터넷 연결을 확인해 주세요.');
-    } finally {
-      state.sending = false;
-      render();
-      $('word-input').focus();
     }
   }
 
@@ -260,14 +191,11 @@
 
   // ---- 입력 ----
   document.addEventListener('click', (event) => {
-    const t = event.target.closest('[data-class],[data-phase],[data-action]');
+    const t = event.target.closest('[data-class],[data-action]');
     if (!t) return;
     if (t.dataset.class) {
       state.classNo = Number(t.dataset.class);
       try { localStorage.setItem(CLASS_KEY, String(state.classNo)); } catch (e) { /* 무시 */ }
-    } else if (t.dataset.phase) {
-      state.phase = t.dataset.phase;
-      try { localStorage.setItem(PHASE_KEY, state.phase); } catch (e) { /* 무시 */ }
     } else if (t.dataset.action === 'toggle-show') {
       setShow(!document.body.classList.contains('is-show'));
     } else if (t.dataset.action === 'toggle-highlight') {
@@ -275,11 +203,10 @@
     }
     render();
   });
-  $('send-form').addEventListener('submit', submitWord);
 
   function setShow(on) {
     document.body.classList.toggle('is-show', on);
-    $('show-btn').textContent = on ? '✏️ 입력 화면으로' : '📺 화면에 띄우기';
+    $('show-btn').textContent = on ? '↩ 작게 보기' : '📺 화면에 띄우기';
   }
 
   // 화면 크기가 바뀌면 구름을 다시 배치합니다.
@@ -292,15 +219,11 @@
   async function init() {
     // 교사 현황의 '단어 구름 열기'는 ?show=1 로 열어 바로 크게 보여 줍니다.
     if (new URLSearchParams(window.location.search).get('show') === '1') setShow(true);
-    try {
-      const stored = localStorage.getItem(PHASE_KEY);
-      if (PHASES.some((p) => p.key === stored)) state.phase = stored;
-    } catch (e) { /* 무시 */ }
     render();
     await loadClasses();
     render();
     await refresh();
-    // 다른 크롬북에서 보낸 단어도 보이도록 주기적으로 다시 불러옵니다.
+    // 학생들이 크롬북에서 보낸 단어가 보이도록 주기적으로 다시 불러옵니다.
     window.setInterval(() => { if (!document.hidden) refresh(); }, POLL_MS);
   }
 

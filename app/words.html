@@ -14,14 +14,10 @@
   .nav-pill--show { background: var(--mint-500); color: var(--navy-950); }
   .main-content { padding-top: 48px; }
 
-  .phase-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
   .question { margin: 34px 0 0; padding: clamp(22px, 3vw, 34px); border-radius: 24px; background: var(--navy-900); color: #fff; }
   .question .eyebrow { color: var(--mint-500); margin-bottom: 12px; }
   .question h2 { margin: 0; font-size: clamp(26px, 3.6vw, 40px); font-weight: 800; letter-spacing: -0.05em; line-height: 1.25; }
-  .send-row { margin-top: 22px; display: flex; gap: 10px; }
-  .send-row input { flex: 1; min-width: 0; padding: 0 20px; min-height: 60px; border: 0; border-radius: 14px; font: inherit; font-size: 22px; font-weight: 700; color: var(--navy-900); }
-  .send-row .primary-button { min-width: 150px; min-height: 60px; font-size: 18px; }
-  .send-hint { margin: 10px 0 0; color: #a9bbd7; font-size: 13px; }
+  .question p { margin: 12px 0 0; color: #a9bbd7; font-size: 14px; }
 
   .cloud-panel { margin-top: 18px; padding: clamp(20px, 3vw, 30px); border: 1px solid var(--line); border-radius: 24px; background: var(--paper); box-shadow: var(--shadow); }
   .cloud-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
@@ -46,33 +42,20 @@
   .legend { margin-top: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: 13px; font-weight: 700; }
   .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 3px; }
 
-  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .compare .cloud-panel { margin-top: 0; }
-  .compare .cloud { height: 320px; }
-  .growth-row { margin-top: 18px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-  .growth-card { padding: 18px 20px; border-radius: 18px; background: var(--paper); border: 1px solid var(--line); }
-  .growth-card b { display: block; font-size: 16px; letter-spacing: -0.04em; }
-  .growth-card small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
-  .growth-card .nums { margin-top: 10px; font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 24px; color: var(--navy-900); }
-  .growth-card .nums em { font-style: normal; color: var(--muted); font-size: 15px; }
-
-  /* 화면에 띄우기: 입력칸을 숨기고 구름을 크게 */
-  body.is-show .question .send-row, body.is-show .send-hint, body.is-show .hero-copy { display: none; }
+  /* 화면에 띄우기: 제목을 숨기고 구름을 크게 */
+  body.is-show .question p, body.is-show .hero-copy { display: none; }
   body.is-show .selection-toolbar { margin: 0 0 18px; }
   body.is-show .question { margin-top: 0; }
-  body.is-show #ask-view .cloud { height: 58vh; }
-  body.is-show .compare .cloud { height: 52vh; }
+  body.is-show .cloud { height: 58vh; }
 
   @media (max-width: 860px) {
-    .compare, .growth-row { grid-template-columns: 1fr; }
     .nav-pill { padding: 12px 16px; font-size: 15px; }
   }
   @media (max-width: 600px) {
-    .cloud, .compare .cloud { height: 320px; }
+    .cloud { height: 320px; }
     .nav { gap: 6px; }
     .nav-pill { padding: 10px 12px; font-size: 13px; }
     .nav-pill--home, .brand-context { display: none; }
-    .send-row { flex-direction: column; }
   }
 </style>
 </head>
@@ -81,7 +64,7 @@
   <header class="app-header">
     <a class="brand" href="./index.html" aria-label="처음 화면으로">
       <span class="brand-mark" aria-hidden="true">☁</span>
-      <span><span class="brand-name">단어 구름</span><span class="brand-context">오늘 배운 것을 한 단어로</span></span>
+      <span><span class="brand-name">단어 구름</span><span class="brand-context">내가 생각하는 자기효능감</span></span>
     </a>
     <nav class="nav">
       <a class="nav-pill nav-pill--home" href="./index.html">🏠 처음으로</a>
@@ -93,7 +76,7 @@
   <main class="main-content">
     <div class="hero-copy">
       <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>속력 탐구 · 단어 구름</p>
-      <h1>한 단어로 말해요,<br><span>우리 반 생각이 보여요.</span></h1>
+      <h1>자기효능감이란 뭘까요?<br><span>우리 반 생각이 보여요.</span></h1>
     </div>
 
     <div class="selection-toolbar">
@@ -101,22 +84,14 @@
         <div class="toolbar-heading"><span class="section-label">반 선택</span><span class="toolbar-caption">우리 반을 고르세요</span></div>
         <div class="class-tabs" id="class-tabs" role="tablist" aria-label="반 선택"></div>
       </div>
-      <div class="selection-filter">
-        <div class="toolbar-heading"><span class="section-label">언제</span><span class="toolbar-caption">같은 질문을 수업 처음과 끝에 두 번 해요</span></div>
-        <div class="group-tabs" id="phase-tabs" role="tablist" aria-label="언제"></div>
-      </div>
     </div>
 
-    <!-- 질문과 입력 (처음·끝) -->
+    <!-- 질문과 구름 -->
     <section id="ask-view">
       <div class="question">
-        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span><span id="phase-label">수업 처음</span></p>
+        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span><span id="phase-label">속력 탐구를 마치며</span></p>
         <h2 id="question-text"></h2>
-        <form class="send-row" id="send-form" autocomplete="off">
-          <input id="word-input" maxlength="20" placeholder="한두 단어로 써요" aria-label="내 단어">
-          <button class="primary-button" type="submit" id="send-btn">보내기</button>
-        </form>
-        <p class="send-hint">한 사람이 하나씩 보내고, 다음 친구에게 크롬북을 넘겨 주세요. 여러 개를 보내도 괜찮아요.</p>
+        <p>학생들은 속력 탐구 마지막 단계에서 수업 후 자신감을 매긴 다음 쓴 단어가 여기에 모여요.</p>
       </div>
       <div class="cloud-panel">
         <div class="cloud-head">
@@ -131,24 +106,8 @@
       </div>
     </section>
 
-    <!-- 처음↔끝 비교 -->
-    <section id="compare-view" hidden>
-      <div class="compare">
-        <div class="cloud-panel">
-          <div class="cloud-head"><h3>수업 처음</h3><div class="stat-chips" id="before-stats"></div></div>
-          <div class="cloud" id="before-cloud"></div>
-        </div>
-        <div class="cloud-panel">
-          <div class="cloud-head"><h3>수업 끝</h3><div class="stat-chips" id="after-stats"></div></div>
-          <div class="cloud" id="after-cloud"></div>
-        </div>
-      </div>
-      <div class="growth-row" id="growth-row"></div>
-      <div class="legend" id="legend-compare" style="margin-top:14px"></div>
-    </section>
   </main>
 </div>
-<div class="toast" id="toast" hidden></div>
 <script src="./words.js"></script>
 </body>
 </html>
