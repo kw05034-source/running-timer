@@ -1106,7 +1106,7 @@
       case 'lock-teacher':
         teacherUnlocked = false;
         try { sessionStorage.removeItem(TEACHER_UNLOCK_KEY); } catch (error) { /* 무시 */ }
-        state.mode = 'student'; render(); break;
+        render(); break;
       case 'copy-csv':
         navigator.clipboard.writeText(csv()).then(() => showToast('복사했어요. 스프레드시트에 붙여 넣으세요.'), () => showToast('복사하지 못했어요.'));
         break;
@@ -1227,7 +1227,9 @@
       state.step = firstOpenStep(r);
     } else {
       $('back-link').textContent = '🏠 측정 앱으로';
-      if (window.location.hash === '#teacher') state.mode = 'teacher';
+      // 학생은 측정 앱에서 자기 이름으로만(?student=) 들어옵니다. 그 밖에는 다른 학생 기록이 보이지 않도록 잠긴 교사 현황만 엽니다.
+      state.mode = 'teacher';
+      document.body.classList.add('is-teacher-only');
     }
     render();
     if (focus) loadRecordCounts();
