@@ -8,10 +8,31 @@
 <style>
   /* 속력 탐구 화면 전용 스타일. 기록 측정 화면(styles.css)의 구성 요소를 그대로 쓰고, 여기에는 없는 것만 더합니다. */
   .nav { display: flex; align-items: center; gap: 12px; }
-  .nav-pill { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 999px; padding: 14px 24px; font-size: 17px; font-weight: 800; text-decoration: none; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.2); }
+  .nav-pill { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; border: 0; border-radius: 999px; padding: 14px 24px; font-size: 17px; font-weight: 800; text-decoration: none; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.2); }
   .nav-pill--home { background: #e5eaf2; color: #17233a; box-shadow: none; font-size: 16px; }
   .nav-pill--pick { background: var(--orange-500); color: #2a1300; }
   .nav-pill--board { background: var(--mint-500); color: var(--navy-950); }
+  .nav-pill--rank { background: #ffc94d; color: #2a1c00; }
+  .nav-pill--teacher { background: #fff; color: var(--navy-900); }
+
+  /* 교사 현황 */
+  .pin-row { margin-top: 16px; display: flex; gap: 10px; max-width: 420px; }
+  .pin-row input { flex: 1; min-width: 0; min-height: 56px; padding: 0 18px; border: 2px solid var(--line); border-radius: 14px; font: inherit; font-size: 20px; }
+  .pin-error { margin: 10px 0 0; color: #c2410c; font-weight: 800; }
+  .t-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .t-chip { padding: 8px 14px; border-radius: 999px; background: var(--canvas); color: var(--muted); font-size: 14px; font-weight: 800; }
+  .t-chip strong { color: var(--navy-900); }
+  .t-table-wrap { margin-top: 14px; overflow-x: auto; }
+  .t-table { width: 100%; min-width: 860px; border-collapse: collapse; text-align: left; }
+  .t-table th { padding: 10px 8px; color: var(--muted); font-size: 12px; font-weight: 800; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  .t-table td { padding: 12px 8px; border-top: 1px solid var(--line); color: var(--navy-800); font-size: 14px; white-space: nowrap; }
+  .t-table .num { text-align: right; font-family: 'Cascadia Mono', 'Roboto Mono', monospace; }
+  .t-table th.num { font-family: inherit; }
+  .t-table .muted { color: var(--muted); font-size: 12px; }
+  .t-table .up { color: #0eae89; font-weight: 800; }
+  .t-table .down { color: #c2410c; font-weight: 800; }
+  .t-progress { padding: 3px 10px; border-radius: 999px; background: var(--canvas); font-weight: 800; }
+  .t-progress.is-done { background: var(--mint-100); color: #0b8a68; }
   .hero-copy h1 span.accent-orange { color: var(--orange-500); }
 
   /* 학생 카드: 방식별로 뛰었는지 */
@@ -34,6 +55,7 @@
   .speed-intro .timer-instruction { margin: 18px 0 0; }
   .link-row { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 9px; }
   .link-row .secondary-button, .link-row .primary-button { padding: 0 20px; }
+  .link-row a.secondary-button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 
   /* 저장 확인 */
   .record-details strong.speed { color: var(--orange-500); font-size: 18px; }
@@ -104,6 +126,9 @@
   .steps button:disabled { cursor: not-allowed; }
 
   @media (max-width: 1100px) {
+    .nav { gap: 8px; }
+    .nav-pill { padding: 12px 16px; font-size: 15px; }
+    .brand-context { display: none; }
     .steps button { flex-direction: column; gap: 6px; padding: 10px 6px; text-align: center; }
     .steps small { display: none; }
     .steps b { font-size: 14px; }
@@ -119,6 +144,7 @@
     .nav { gap: 6px; }
     .nav-pill { padding: 10px 12px; font-size: 13px; }
     .nav-pill--home { display: none; }
+    .nav { flex-wrap: wrap; justify-content: flex-end; }
     .brand-context { display: none; }
     .conf-grid { grid-template-columns: repeat(5, 1fr); }
     .conf-actions > * { flex: 1; }
@@ -139,6 +165,8 @@
       <a class="nav-pill nav-pill--home" href="./index.html">🏠 처음으로</a>
       <button type="button" class="nav-pill nav-pill--pick" data-action="go-pick">👟 학생 선택</button>
       <button type="button" class="nav-pill nav-pill--board" data-action="go-board">📊 우리 반 현황</button>
+      <a class="nav-pill nav-pill--rank" href="./ranking.html?board=speed">🏆 랭킹판</a>
+      <button type="button" class="nav-pill nav-pill--teacher" data-action="go-teacher">🧑‍🏫 교사 현황</button>
     </nav>
   </header>
 
@@ -341,6 +369,40 @@
         <h2>평균속력 랭킹</h2>
         <p class="panel-note">학생마다 가장 빠른 평균속력(어느 방식이든)으로 순위를 매겨요.</p>
         <table class="rank"><tbody id="rank-body"></tbody></table>
+      </div>
+    </section>
+    <!-- 5. 교사 현황 (선생님 번호로 잠금) -->
+    <section class="screen" data-screen="teacher" hidden>
+      <div class="page-head">
+        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>교사 현황</p>
+        <h1 id="teacher-title">교사 현황</h1>
+        <p>학생마다 수업 전 자신감, 세 방식 평균속력, 수업 후 자신감을 한눈에 봐요.</p>
+      </div>
+      <div class="panel" id="teacher-lock">
+        <h2>🔒 선생님 화면이에요</h2>
+        <p class="panel-note">성장판 교사 현황과 같은 선생님 번호를 넣어 주세요.</p>
+        <form class="pin-row" id="pin-form" autocomplete="off">
+          <input id="pin-input" type="password" inputmode="numeric" maxlength="12" aria-label="선생님 번호" placeholder="번호">
+          <button type="submit" class="primary-button">열기</button>
+        </form>
+        <p class="pin-error" id="pin-error" hidden>번호가 맞지 않아요.</p>
+      </div>
+      <div class="panel" id="teacher-body" hidden>
+        <div class="class-tabs" id="teacher-class-tabs" aria-label="반 선택"></div>
+        <div class="t-chips" id="teacher-summary"></div>
+        <div class="link-row">
+          <a class="secondary-button" href="./ranking.html?board=speed" target="_blank" rel="noopener">🏆 랭킹판 열기 ↗</a>
+          <a class="secondary-button" href="./words.html?show=1" target="_blank" rel="noopener">☁ 단어 구름 열기 ↗</a>
+          <button type="button" class="secondary-button" data-action="teacher-csv">표를 CSV로 복사</button>
+          <button type="button" class="secondary-button" data-action="lock-teacher">🔒 잠그기</button>
+        </div>
+        <div class="t-table-wrap">
+          <table class="t-table">
+            <thead><tr><th>번호</th><th>이름</th><th class="num">수업 전 자신감</th><th class="num">5m×4</th><th class="num">10m×2</th><th class="num">20m×1</th><th class="num">보폭</th><th class="num">달린 횟수</th><th class="num">수업 후 자신감</th><th class="num">변화</th><th class="num">단계</th></tr></thead>
+            <tbody id="teacher-rows"></tbody>
+          </table>
+        </div>
+        <p class="panel-note">평균속력은 방식별 가장 빠른 기록(m/s)이에요. 보폭은 걸음 수를 입력한 크롬북에서만 보여요.</p>
       </div>
     </section>
   </main>

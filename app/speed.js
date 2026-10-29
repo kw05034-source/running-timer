@@ -18,6 +18,9 @@
   const ENTER_STOP_GUARD_MS = 300;
   // 걸음 수(보수)는 시트 구조를 바꾸지 않도록 이 기기에만 저장합니다. {student_id: 걸음 수}
   const STEPS_KEY = 'speed-steps-v1';
+  // 교사 현황 잠금: 성장판(growth.js)과 같은 선생님 번호, 같은 잠금 상태를 씁니다.
+  const TEACHER_UNLOCK_KEY = 'growth-teacher-unlocked';
+  const TEACHER_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
   const CLASS_KEY = 'movement-records-selected-class-v1';
 
   let students = [];
@@ -572,6 +575,85 @@
     Promise.all([refreshRecords(), refreshConfidence()]).then(([ok]) => { if (ok && state.screen === 'board') renderBoard(); });
   }
 
+  // ---- 교사 현황 (선생님 번호로 잠금) ----
+  // 반 학생마다 수업 전 자신감 → 세 방식 평균속력 → 랭킹 도전 → 수업 후 자신감을 한 줄로 봅니다.
+  let teacherUnlocked = (() => { try { return sessionStorage.getItem(TEACHER_UNLOCK_KEY) === '1'; } catch (e) { return false; } })();
+
+  async function sha256(text) {
+    const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function teacherRows() {
+    return students.filter((s) => s.class === state.classNo).sort((a, b) => a.number - b.number).map((s) => {
+      const best = bestSpeeds(s.student_id);
+      const c = confidence[s.student_id] || {};
+      const steps = journeySteps(s.student_id);
+      return { s, best, c, stride: strideOf(s.student_id), runs: speedRecordsOf(s.student_id).length, done: steps.filter((st) => st.done).length, total: steps.length };
+    });
+  }
+
+  function renderTeacher() {
+    $('teacher-lock').hidden = teacherUnlocked;
+    $('teacher-body').hidden = !teacherUnlocked;
+    if (!teacherUnlocked) return;
+    const classes = [...new Set(students.map((s) => s.class))].sort((a, b) => a - b);
+    $('teacher-class-tabs').innerHTML = classes.map((c) => `<button type="button" class="class-tab${c === state.classNo ? ' is-selected' : ''}" data-class="${c}">${c}반</button>`).join('');
+    $('teacher-title').textContent = `${state.classNo}반 교사 현황`;
+    const rows = teacherRows();
+    const mean = (list) => (list.length ? (list.reduce((a, b) => a + b, 0) / list.length).toFixed(1) : '—');
+    const befores = rows.map((r) => r.c.before).filter(Boolean);
+    const afters = rows.map((r) => r.c.after).filter(Boolean);
+    $('teacher-summary').innerHTML = [
+      `참여 <strong>${rows.filter((r) => r.runs).length}</strong>/${rows.length}명`,
+      `세 방식 모두 <strong>${rows.filter((r) => METHODS.every((m) => r.best[m.key])).length}</strong>명`,
+      `수업 후 자신감까지 <strong>${afters.length}</strong>명`,
+      `자신감 평균 <strong>${mean(befores)} → ${mean(afters)}</strong>점`
+    ].map((t) => `<span class="t-chip">${t}</span>`).join('');
+    const cell = (v) => (v ? v.toFixed(2) : '<span class="muted">—</span>');
+    $('teacher-rows').innerHTML = rows.length ? rows.map((r) => {
+      const diff = r.c.before && r.c.after ? r.c.after - r.c.before : null;
+      return `<tr>
+        <td>${r.s.number}</td><td><b>${escapeHtml(r.s.name)}</b> <span class="muted">${escapeHtml(r.s.group_or_team)}</span></td>
+        <td class="num">${r.c.before || '<span class="muted">—</span>'}</td>
+        ${METHODS.map((m) => `<td class="num">${cell(r.best[m.key])}</td>`).join('')}
+        <td class="num">${r.stride ? `${r.stride.toFixed(2)}m` : '<span class="muted">—</span>'}</td>
+        <td class="num">${r.runs}</td>
+        <td class="num">${r.c.after || '<span class="muted">—</span>'}</td>
+        <td class="num ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}">${diff === null ? '<span class="muted">—</span>' : `${diff > 0 ? '+' : ''}${diff}`}</td>
+        <td class="num"><span class="t-progress${r.done === r.total ? ' is-done' : ''}">${r.done}/${r.total}</span></td>
+      </tr>`;
+    }).join('') : '<tr><td class="muted" colspan="11">이 반 학생이 없어요.</td></tr>';
+  }
+
+  function openTeacher() {
+    setScreen('teacher');
+    $('pin-error').hidden = true;
+    renderTeacher();
+    if (!teacherUnlocked) { $('pin-input').focus(); return; }
+    Promise.all([refreshRecords(), refreshConfidence()]).then(() => { if (state.screen === 'teacher') renderTeacher(); });
+  }
+
+  async function unlockTeacher(event) {
+    event.preventDefault();
+    const pin = $('pin-input').value.trim();
+    if (pin && await sha256(pin) === TEACHER_PIN_SHA256) {
+      teacherUnlocked = true;
+      try { sessionStorage.setItem(TEACHER_UNLOCK_KEY, '1'); } catch (e) { /* 무시 */ }
+      $('pin-input').value = '';
+      openTeacher();
+    } else {
+      $('pin-error').hidden = false;
+      $('pin-input').select();
+    }
+  }
+
+  function teacherCsv() {
+    const head = ['번호', '이름', '조', '수업 전 자신감', ...METHODS.map((m) => `${m.label} 평균속력(m/s)`), '보폭(m)', '달린 횟수', '수업 후 자신감', '자신감 변화'];
+    const lines = teacherRows().map((r) => [r.s.number, r.s.name, r.s.group_or_team, r.c.before || '', ...METHODS.map((m) => (r.best[m.key] ? r.best[m.key].toFixed(2) : '')), r.stride ? r.stride.toFixed(2) : '', r.runs, r.c.after || '', r.c.before && r.c.after ? r.c.after - r.c.before : '']);
+    return [head, ...lines].map((row) => row.join('\t')).join('\n');
+  }
+
   async function classAi() {
     const sum = classSummary();
     if (!sum.runners) { showToast('아직 우리 반 기록이 없어요.'); return; }
@@ -644,7 +726,7 @@
     const t = event.target.closest('[data-class],[data-group],[data-student],[data-method],[data-step],[data-conf],[data-action]');
     if (!t) return;
     if (state.timer === 'running' && !t.matches('[data-action="stop"]')) { showToast('측정 중이에요. 먼저 STOP을 눌러 주세요.'); return; }
-    if (t.dataset.class) { state.classNo = Number(t.dataset.class); try { localStorage.setItem(CLASS_KEY, String(state.classNo)); } catch (e) { /* 무시 */ } renderPick(); return; }
+    if (t.dataset.class) { state.classNo = Number(t.dataset.class); try { localStorage.setItem(CLASS_KEY, String(state.classNo)); } catch (e) { /* 무시 */ } renderPick(); if (state.screen === 'teacher') renderTeacher(); return; }
     if (t.dataset.group !== undefined && !t.dataset.action) { state.group = t.dataset.group; renderPick(); return; }
     if (t.dataset.student) { openRun(t.dataset.student); return; }
     if (t.dataset.method) { state.method = t.dataset.method; renderRun(); renderJourney(); return; }
@@ -664,12 +746,16 @@
     else if (action === 'coach') coach();
     else if (action === 'go-pick') { setScreen('pick'); renderPick(); }
     else if (action === 'go-board') openBoard();
+    else if (action === 'go-teacher') openTeacher();
+    else if (action === 'lock-teacher') { teacherUnlocked = false; try { sessionStorage.removeItem(TEACHER_UNLOCK_KEY); } catch (e) { /* 무시 */ } renderTeacher(); }
+    else if (action === 'teacher-csv') navigator.clipboard.writeText(teacherCsv()).then(() => showToast('복사했어요. 스프레드시트에 붙여 넣으세요.'), () => showToast('복사하지 못했어요.'));
     else if (action === 'class-ai') classAi();
   });
 
   $('steps-input').addEventListener('input', updateStridePreview);
   $('efficacy-input').addEventListener('input', () => { $('efficacy-error').hidden = true; renderEfficacy(); });
   $('efficacy-form').addEventListener('submit', saveEfficacy);
+  $('pin-form').addEventListener('submit', unlockTeacher);
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' || event.repeat || state.screen !== 'run') return;
