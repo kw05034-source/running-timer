@@ -1323,6 +1323,29 @@ function getOrCreateSpeedWordsSheet_(spreadsheet) {
   return getValidatedSheet_(spreadsheet, SPEED_WORDS_SHEET_NAME, SPEED_WORDS_HEADERS);
 }
 
+// 단어 구름에 올라가면 안 되는 말. 띄어쓰기·숫자·기호를 빼고 비교합니다. (app/speed.js의 BAD_WORDS와 같은 목록)
+var SPEED_BAD_WORDS = [
+  '시발', '씨발', '씨바', '시바', '쓰발', '씨빨', '시빨', '씹', '병신', '븅신', '빙신', '병1신', '개새', '개색', '개세', '새끼', '색기', '섀끼', '좆', '존나', '졸라', '지랄', '미친', '미쳤', '닥쳐', '꺼져', '엿먹', '염병', '엠창', '느금', '니애미', '니엄마', '애미', '애비', '등신', '멍청', '바보', '찐따', '틀딱', '죽여', '자살', '섹스', '야동', '똥', '오줌', '방귀',
+  'ㅅㅂ', 'ㅆㅂ', 'ㅂㅅ', 'ㅅㄲ', 'ㅈㄴ', 'ㅈㄹ', 'ㅁㅊ', 'ㄲㅈ', 'ㄷㅊ',
+  'fuck', 'shit', 'bitch', 'sex', 'damn'
+];
+
+function speedWordProblem_(word) {
+  var bare = word.toLowerCase().replace(/[^가-힣ㄱ-ㅎㅏ-ㅣa-z]/g, '');
+  for (var i = 0; i < SPEED_BAD_WORDS.length; i++) {
+    if (bare.indexOf(SPEED_BAD_WORDS[i]) !== -1) {
+      return '그 말은 보낼 수 없어요. 내 생각을 바른 말로 써 주세요.';
+    }
+  }
+  if (!/[가-힣a-z]/.test(bare)) {
+    return 'ㅋㅋ·ㅠㅠ나 숫자·기호만으로는 보낼 수 없어요. 낱말로 써 주세요.';
+  }
+  if (/(.)\1\1/.test(bare)) {
+    return '같은 글자를 여러 번 이어 쓸 수 없어요. 낱말로 써 주세요.';
+  }
+  return null;
+}
+
 function saveSpeedWord_(request) {
   var classNo = Number(request['class']);
   if (!(classNo >= 1 && classNo <= 20 && Math.floor(classNo) === classNo)) {
@@ -1334,6 +1357,10 @@ function saveSpeedWord_(request) {
   var word = String(request.word == null ? '' : request.word).replace(/\s+/g, ' ').trim();
   if (!word || word.length > SPEED_WORD_MAX_LENGTH) {
     throwAppError_('INVALID_WORD', '단어는 1~' + SPEED_WORD_MAX_LENGTH + '자로 써 주세요.', 400);
+  }
+  var problem = speedWordProblem_(word);
+  if (problem) {
+    throwAppError_('BAD_WORD', problem, 400);
   }
   // 시트 수식으로 해석되지 않도록 = + - @ 로 시작하면 앞에 따옴표를 붙입니다.
   if (/^[=+\-@]/.test(word)) {
