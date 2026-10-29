@@ -2,16 +2,19 @@
   'use strict';
 
   // ---- 단어 구름 ----
-  // 학생들은 속력 탐구의 수업 전·수업 후 단계에서 자신감 점수 다음에 '내가 생각하는 자기효능감'을 써서 보냅니다.
+  // 학생들은 속력 탐구의 수업 전·후 단계에서 자신감 점수 다음에 단어를 써서 보냅니다.
+  // 수업 전·후: 기록 줄이기(같은 질문 두 번, 비교) / 수업 후만: 내가 생각하는 자기효능감, 이번 수업에서 얻은 것
   // 이 화면은 그 단어를 반별 구름으로 보여 주기만 합니다. (입력은 speed.js의 openEfficacy)
   // 단원 탐구 진술(동작의 개선은 기능 발달을 가져오고 자기효능감에 영향을 준다)과 가까운 단어는 색으로 강조합니다.
-  // 단어는 SpeedWords 시트에 phase before/after로 저장되고, 오늘 낸 단어만 보여 줍니다.
+  // 단어는 SpeedWords 시트에 phase(before/after/efficacy/gain)로 저장되고, 오늘 낸 단어만 보여 줍니다.
   const SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbw5mlmLxwSTXB7q7lsbqlGjWfkU9aTUwmwFSKeiK_Y9OyDX-eqx51AAkayE6qtAkCQS/exec';
-  const QUESTION = '내가 생각하는 자기효능감은?';
+  const RECORD_Q = '같은 40m, 기록을 줄이려면 무엇이 중요할까?';
   const PHASES = [
-    { key: 'before', label: '수업 전' },
-    { key: 'after', label: '수업 후' },
-    { key: 'compare', label: '전 ↔ 후 비교' }
+    { key: 'before', label: '기록 줄이기 · 수업 전', q: RECORD_Q },
+    { key: 'after', label: '기록 줄이기 · 수업 후', q: RECORD_Q },
+    { key: 'compare', label: '기록 줄이기 전 ↔ 후', q: RECORD_Q },
+    { key: 'efficacy', label: '자기효능감이란', q: '내가 생각하는 자기효능감이란?' },
+    { key: 'gain', label: '이번 수업에서 얻은 것', q: '이번 수업을 통해 얻은 것은?' }
   ];
   // 탐구 진술의 세 부분과 가까운 단어. 띄어쓰기를 뺀 단어에 아래 말이 들어 있으면 그 묶음으로 셉니다.
   const GROUPS = [
@@ -179,7 +182,7 @@
     const phase = PHASES.find((p) => p.key === state.phase);
     const list = wordsFor(state.phase);
     $('phase-label').textContent = `${state.classNo}반 · ${phase.label}`;
-    $('question-text').textContent = QUESTION;
+    $('question-text').textContent = phase.q;
     $('cloud-title').textContent = `${state.classNo}반 ${phase.label} 단어 구름`;
     drawCloud($('cloud'), list, state.highlight);
     $('highlight-btn').textContent = state.highlight ? '🎨 모든 단어 색으로 보기' : '🔍 탐구 진술 단어 찾기';
