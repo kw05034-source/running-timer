@@ -24,6 +24,8 @@
   let records = [];
   // 자신감 점수 {student_id: {before, after}} (SpeedConfidence 시트)
   let confidence = {};
+  // 수업 끝에 쓴 '내가 생각하는 자기효능감' {student_id: 단어} (SpeedWords 시트, 단어 구름에 모여요)
+  const efficacyWords = {};
   const state = {
     screen: 'pick', classNo: null, group: '', studentId: null, method: null,
     timer: 'idle', startedAt: 0, elapsedMs: 0, timerId: null, pending: null, saving: false
@@ -76,7 +78,7 @@
 
   // ---- 학생 단계 카드 ----
   // 수업 전 자신감 → 세 가지 방식 → 랭킹 도전 → 수업 후 자신감. 성장판과 같은 모양으로 보여 줍니다.
-  const JOURNEY_SCREENS = ['confidence', 'run', 'confirm', 'result'];
+  const JOURNEY_SCREENS = ['confidence', 'efficacy', 'run', 'confirm', 'result'];
   function journeySteps(id) {
     const best = bestSpeeds(id);
     const c = confidence[id] || {};
@@ -85,12 +87,13 @@
       { key: 'before', label: '수업 전', sub: '자신감 매기기', done: c.before !== undefined },
       ...METHODS.map((m) => ({ key: m.key, label: m.label, sub: m.key === '20x1' ? '걸음 수로 보폭' : `방향 전환 ${m.turns}번`, done: !!best[m.key] })),
       { key: 'challenge', label: '랭킹 도전', sub: '한 방식 골라 다시', done: allThree && speedRecordsOf(id).length > METHODS.length },
-      { key: 'after', label: '수업 후', sub: '자신감·돌아보기', done: !!c.after }
+      { key: 'after', label: '수업 후', sub: '자신감·자기효능감', done: !!c.after }
     ];
   }
 
   function currentStepKey() {
     if (state.screen === 'confidence') return state.confPhase;
+    if (state.screen === 'efficacy') return 'after';
     if (state.method) {
       const done = !!bestSpeeds(state.studentId)[state.method];
       const allThree = METHODS.every((m) => bestSpeeds(state.studentId)[m.key]);
@@ -250,7 +253,50 @@
   }
 
   function continueAfterConfidence(studentId, phase) {
-    if (phase === 'before') openRun(studentId, true); else openResult();
+    if (phase === 'before') openRun(studentId, true); else openEfficacy();
+  }
+
+  // ---- 내가 생각하는 자기효능감 (수업 후 자신감 다음) ----
+  // 학생마다 한두 단어로 써서 보내면 단어 구름(words.html)에 우리 반 단어로 모입니다.
+  function openEfficacy() {
+    const student = getStudent(state.studentId);
+    if (!student) return;
+    state.efficacySaving = false;
+    $('efficacy-title').textContent = `${student.name}, 마지막 질문이에요`;
+    $('efficacy-input').value = efficacyWords[student.student_id] || '';
+    $('efficacy-skip').hidden = true;
+    renderEfficacy();
+    setScreen('efficacy');
+    $('efficacy-input').focus();
+  }
+
+  function renderEfficacy() {
+    const word = $('efficacy-input').value.replace(/\s+/g, ' ').trim();
+    $('efficacy-send').disabled = !word || state.efficacySaving;
+    $('efficacy-send').innerHTML = state.efficacySaving ? '보내는 중...' : (word ? '<span aria-hidden="true">✓</span> 보내고 결과 보기' : '먼저 써 주세요');
+  }
+
+  async function saveEfficacy(event) {
+    event.preventDefault();
+    const student = getStudent(state.studentId);
+    const word = $('efficacy-input').value.replace(/\s+/g, ' ').trim();
+    if (!student || !word || state.efficacySaving) return;
+    state.efficacySaving = true;
+    renderEfficacy();
+    try {
+      const res = await postJson({ type: 'speed_word', class: student.class, phase: 'after', word });
+      if (!res.ok) throw new Error(res.error?.message);
+      efficacyWords[student.student_id] = word;
+      state.efficacySaving = false;
+      openResult();
+      showToast('보냈어요! 우리 반 단어 구름에 모여요.');
+    } catch (error) {
+      console.warn('자기효능감 단어 저장 실패', error);
+      state.efficacySaving = false;
+      renderEfficacy();
+      $('efficacy-skip').hidden = false;
+      showToast('보내지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.');
+    }
   }
 
   function confidenceText(studentId) {
@@ -401,7 +447,8 @@
     const stride = strideOf(student.student_id);
     $('result-stride').textContent = stride ? `보폭: 약 ${stride.toFixed(2)} m (20m를 ${readSteps()[student.student_id]}걸음)` : '20m×1을 뛸 때 짝이 걸음 수를 세면 보폭도 나와요.';
     $('coach-box').hidden = true;
-    $('result-conf').textContent = confidenceText(student.student_id);
+    const efficacy = efficacyWords[student.student_id];
+    $('result-conf').textContent = confidenceText(student.student_id) + (efficacy ? ` · 내가 생각하는 자기효능감: "${efficacy}"` : '');
     setScreen('result');
   }
 
@@ -576,6 +623,7 @@
     else if (action === 'conf-save') saveConfidence();
     else if (action === 'conf-skip') skipConfidence();
     else if (action === 'conf-after') openConfidence(state.studentId, 'after');
+    else if (action === 'efficacy-skip') openResult();
     else if (action === 'coach') coach();
     else if (action === 'go-pick') { setScreen('pick'); renderPick(); }
     else if (action === 'go-board') openBoard();
@@ -583,6 +631,8 @@
   });
 
   $('steps-input').addEventListener('input', updateStridePreview);
+  $('efficacy-input').addEventListener('input', renderEfficacy);
+  $('efficacy-form').addEventListener('submit', saveEfficacy);
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' || event.repeat || state.screen !== 'run') return;
