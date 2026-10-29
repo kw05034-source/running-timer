@@ -11,7 +11,6 @@
   .nav-pill { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 999px; padding: 14px 24px; font-size: 17px; font-weight: 800; text-decoration: none; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.2); }
   .nav-pill--home { background: #e5eaf2; color: #17233a; box-shadow: none; font-size: 16px; }
   .nav-pill--pick { background: var(--orange-500); color: #2a1300; }
-  .nav-pill--words { background: var(--blue-500); color: #fff; }
   .nav-pill--board { background: var(--mint-500); color: var(--navy-950); }
   .hero-copy h1 span.accent-orange { color: var(--orange-500); }
 
@@ -79,6 +78,7 @@
   .efficacy-row { margin-top: 18px; }
   .efficacy-row input { width: 100%; min-height: 64px; padding: 0 20px; border: 2px solid var(--line); border-radius: 14px; font: inherit; font-size: 22px; font-weight: 700; color: var(--navy-900); }
   .efficacy-row input:focus { outline: none; border-color: var(--blue-500); }
+  .efficacy-error { margin: 10px 0 0; padding: 12px 16px; border-radius: 12px; background: #fff0ec; color: #c2410c; font-size: 15px; font-weight: 800; }
   .conf-scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; }
 
   /* 학생 단계 카드 (성장판과 같은 모양): 끝난 단계는 ✓, 지금 단계는 남색 */
@@ -139,7 +139,6 @@
       <a class="nav-pill nav-pill--home" href="./index.html">🏠 처음으로</a>
       <button type="button" class="nav-pill nav-pill--pick" data-action="go-pick">👟 학생 선택</button>
       <button type="button" class="nav-pill nav-pill--board" data-action="go-board">📊 우리 반 현황</button>
-      <a class="nav-pill nav-pill--words" href="./words.html">☁ 단어 구름</a>
     </nav>
   </header>
 
@@ -208,7 +207,7 @@
     </section>
 
     <!-- 2. 방식 고르고 측정 -->
-    <!-- 1-2. 내가 생각하는 자기효능감 (수업 후 자신감 다음) -->
+    <!-- 1-2. 내가 생각하는 자기효능감 (수업 전·후 자신감 다음) -->
     <section class="screen" data-screen="efficacy" hidden>
       <div class="screen-topbar">
         <button class="back-button" type="button" data-action="go-pick"><span aria-hidden="true">←</span> 학생 선택</button>
@@ -216,13 +215,14 @@
       <div class="page-head" style="margin-top:40px">
         <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>자기효능감</p>
         <h1 id="efficacy-title"></h1>
-        <p>정답은 없어요. 오늘 달리기를 떠올리며 내 생각을 써 주세요.</p>
+        <p id="efficacy-sub"></p>
       </div>
       <div class="panel">
         <h2>내가 생각하는 자기효능감은?</h2>
         <form class="efficacy-row" id="efficacy-form" autocomplete="off">
           <input id="efficacy-input" maxlength="20" placeholder="한두 단어로 써요" aria-label="내가 생각하는 자기효능감">
         </form>
+        <p class="efficacy-error" id="efficacy-error" role="alert" hidden></p>
         <div class="conf-actions">
           <button type="submit" form="efficacy-form" class="primary-button" id="efficacy-send" disabled>먼저 써 주세요</button>
           <button type="button" class="secondary-button" id="efficacy-skip" data-action="efficacy-skip" hidden>보내지 않고 결과 보기</button>

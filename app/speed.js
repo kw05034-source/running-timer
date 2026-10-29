@@ -24,7 +24,7 @@
   let records = [];
   // 자신감 점수 {student_id: {before, after}} (SpeedConfidence 시트)
   let confidence = {};
-  // 수업 끝에 쓴 '내가 생각하는 자기효능감' {student_id: 단어} (SpeedWords 시트, 단어 구름에 모여요)
+  // 수업 전·후에 쓴 '내가 생각하는 자기효능감' {student_id: {before, after}} (SpeedWords 시트, 단어 구름에 모여요)
   const efficacyWords = {};
   const state = {
     screen: 'pick', classNo: null, group: '', studentId: null, method: null,
@@ -84,7 +84,7 @@
     const c = confidence[id] || {};
     const allThree = METHODS.every((m) => best[m.key]);
     return [
-      { key: 'before', label: '수업 전', sub: '자신감 매기기', done: c.before !== undefined },
+      { key: 'before', label: '수업 전', sub: '자신감·자기효능감', done: c.before !== undefined },
       ...METHODS.map((m) => ({ key: m.key, label: m.label, sub: m.key === '20x1' ? '걸음 수로 보폭' : `방향 전환 ${m.turns}번`, done: !!best[m.key] })),
       { key: 'challenge', label: '랭킹 도전', sub: '한 방식 골라 다시', done: allThree && speedRecordsOf(id).length > METHODS.length },
       { key: 'after', label: '수업 후', sub: '자신감·자기효능감', done: !!c.after }
@@ -93,7 +93,7 @@
 
   function currentStepKey() {
     if (state.screen === 'confidence') return state.confPhase;
-    if (state.screen === 'efficacy') return 'after';
+    if (state.screen === 'efficacy') return state.efficacyPhase;
     if (state.method) {
       const done = !!bestSpeeds(state.studentId)[state.method];
       const allThree = METHODS.every((m) => bestSpeeds(state.studentId)[m.key]);
@@ -253,17 +253,27 @@
   }
 
   function continueAfterConfidence(studentId, phase) {
-    if (phase === 'before') openRun(studentId, true); else openEfficacy();
+    // 이 화면에서 이미 단어를 보냈으면 다시 묻지 않습니다.
+    if ((efficacyWords[studentId] || {})[phase]) { continueAfterEfficacy(phase); return; }
+    openEfficacy(phase);
   }
 
-  // ---- 내가 생각하는 자기효능감 (수업 후 자신감 다음) ----
+  function continueAfterEfficacy(phase) {
+    if (phase === 'before') openRun(state.studentId, true); else openResult();
+  }
+
+  // ---- 내가 생각하는 자기효능감 (수업 전·후 자신감 다음) ----
   // 학생마다 한두 단어로 써서 보내면 단어 구름(words.html)에 우리 반 단어로 모입니다.
-  function openEfficacy() {
+  function openEfficacy(phase) {
     const student = getStudent(state.studentId);
     if (!student) return;
+    state.efficacyPhase = phase;
     state.efficacySaving = false;
-    $('efficacy-title').textContent = `${student.name}, 마지막 질문이에요`;
-    $('efficacy-input').value = efficacyWords[student.student_id] || '';
+    $('efficacy-title').textContent = phase === 'before' ? `${student.name}, 달리기 전에 하나 더` : `${student.name}, 마지막 질문이에요`;
+    $('efficacy-sub').textContent = phase === 'before' ? '정답은 없어요. 지금 떠오르는 생각을 써 주세요. 수업이 끝나면 한 번 더 물어볼게요.' : '정답은 없어요. 오늘 달리기를 떠올리며 내 생각을 써 주세요.';
+    $('efficacy-skip').textContent = phase === 'before' ? '보내지 않고 달리러 가기' : '보내지 않고 결과 보기';
+    $('efficacy-input').value = '';
+    $('efficacy-error').hidden = true;
     $('efficacy-skip').hidden = true;
     renderEfficacy();
     setScreen('efficacy');
@@ -273,22 +283,48 @@
   function renderEfficacy() {
     const word = $('efficacy-input').value.replace(/\s+/g, ' ').trim();
     $('efficacy-send').disabled = !word || state.efficacySaving;
-    $('efficacy-send').innerHTML = state.efficacySaving ? '보내는 중...' : (word ? '<span aria-hidden="true">✓</span> 보내고 결과 보기' : '먼저 써 주세요');
+    $('efficacy-send').innerHTML = state.efficacySaving ? '보내는 중...' : (word ? `<span aria-hidden="true">✓</span> ${state.efficacyPhase === 'before' ? '보내고 달리러 가기' : '보내고 결과 보기'}` : '먼저 써 주세요');
+  }
+
+  // ---- 바르지 않은 말 거르기 ----
+  // 띄어쓰기·숫자·기호를 빼고 비교해서 '시1발', '개 새' 같은 변형도 걸러요. Apps Script(saveSpeedWord_)도 같은 목록으로 한 번 더 거릅니다.
+  const BAD_WORDS = [
+    '시발', '씨발', '씨바', '시바', '쓰발', '씨빨', '시빨', '씹', '병신', '븅신', '빙신', '병1신', '개새', '개색', '개세', '새끼', '색기', '섀끼', '좆', '존나', '졸라', '지랄', '미친', '미쳤', '닥쳐', '꺼져', '엿먹', '염병', '엠창', '느금', '니애미', '니엄마', '애미', '애비', '등신', '멍청', '바보', '찐따', '틀딱', '죽여', '자살', '섹스', '야동', '똥', '오줌', '방귀',
+    'ㅅㅂ', 'ㅆㅂ', 'ㅂㅅ', 'ㅅㄲ', 'ㅈㄴ', 'ㅈㄹ', 'ㅁㅊ', 'ㄲㅈ', 'ㄷㅊ',
+    'fuck', 'shit', 'bitch', 'sex', 'damn'
+  ];
+  function wordProblem(word) {
+    const bare = word.toLowerCase().replace(/[^가-힣ㄱ-ㅎㅏ-ㅣa-z]/g, '');
+    if (BAD_WORDS.some((b) => bare.includes(b))) return '그 말은 보낼 수 없어요. 내 생각을 바른 말로 써 주세요.';
+    if (!/[가-힣a-z]/.test(bare)) return 'ㅋㅋ·ㅠㅠ나 숫자·기호만으로는 보낼 수 없어요. 낱말로 써 주세요.';
+    if (/(.)\1\1/.test(bare)) return '같은 글자를 여러 번 이어 쓸 수 없어요. 낱말로 써 주세요.';
+    // 친구 이름(성 빼고 이름만 써도)을 쓰는 장난을 막습니다.
+    const names = students.filter((st) => st.class === getStudent(state.studentId)?.class).flatMap((st) => [st.name, st.name.length === 3 ? st.name.slice(1) : null]).filter(Boolean);
+    if (names.some((n) => bare.includes(n))) return '친구 이름은 쓰지 않아요. 내 생각을 낱말로 써 주세요.';
+    return null;
   }
 
   async function saveEfficacy(event) {
     event.preventDefault();
     const student = getStudent(state.studentId);
+    const phase = state.efficacyPhase;
     const word = $('efficacy-input').value.replace(/\s+/g, ' ').trim();
     if (!student || !word || state.efficacySaving) return;
+    const problem = wordProblem(word);
+    $('efficacy-error').hidden = !problem;
+    if (problem) {
+      $('efficacy-error').textContent = problem;
+      $('efficacy-input').select();
+      return;
+    }
     state.efficacySaving = true;
     renderEfficacy();
     try {
-      const res = await postJson({ type: 'speed_word', class: student.class, phase: 'after', word });
+      const res = await postJson({ type: 'speed_word', class: student.class, phase, word });
       if (!res.ok) throw new Error(res.error?.message);
-      efficacyWords[student.student_id] = word;
+      efficacyWords[student.student_id] = { ...(efficacyWords[student.student_id] || {}), [phase]: word };
       state.efficacySaving = false;
-      openResult();
+      continueAfterEfficacy(phase);
       showToast('보냈어요! 우리 반 단어 구름에 모여요.');
     } catch (error) {
       console.warn('자기효능감 단어 저장 실패', error);
@@ -447,8 +483,9 @@
     const stride = strideOf(student.student_id);
     $('result-stride').textContent = stride ? `보폭: 약 ${stride.toFixed(2)} m (20m를 ${readSteps()[student.student_id]}걸음)` : '20m×1을 뛸 때 짝이 걸음 수를 세면 보폭도 나와요.';
     $('coach-box').hidden = true;
-    const efficacy = efficacyWords[student.student_id];
-    $('result-conf').textContent = confidenceText(student.student_id) + (efficacy ? ` · 내가 생각하는 자기효능감: "${efficacy}"` : '');
+    const efficacy = efficacyWords[student.student_id] || {};
+    const efficacyText = [efficacy.before && `수업 전 "${efficacy.before}"`, efficacy.after && `수업 후 "${efficacy.after}"`].filter(Boolean).join(' → ');
+    $('result-conf').textContent = confidenceText(student.student_id) + (efficacyText ? ` · 내가 생각하는 자기효능감: ${efficacyText}` : '');
     setScreen('result');
   }
 
@@ -623,7 +660,7 @@
     else if (action === 'conf-save') saveConfidence();
     else if (action === 'conf-skip') skipConfidence();
     else if (action === 'conf-after') openConfidence(state.studentId, 'after');
-    else if (action === 'efficacy-skip') openResult();
+    else if (action === 'efficacy-skip') continueAfterEfficacy(state.efficacyPhase);
     else if (action === 'coach') coach();
     else if (action === 'go-pick') { setScreen('pick'); renderPick(); }
     else if (action === 'go-board') openBoard();
@@ -631,7 +668,7 @@
   });
 
   $('steps-input').addEventListener('input', updateStridePreview);
-  $('efficacy-input').addEventListener('input', renderEfficacy);
+  $('efficacy-input').addEventListener('input', () => { $('efficacy-error').hidden = true; renderEfficacy(); });
   $('efficacy-form').addEventListener('submit', saveEfficacy);
 
   document.addEventListener('keydown', (event) => {

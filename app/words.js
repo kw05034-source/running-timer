@@ -2,13 +2,17 @@
   'use strict';
 
   // ---- 단어 구름 ----
-  // 학생들은 속력 탐구 마지막 단계(수업 후 자신감 다음)에서 '내가 생각하는 자기효능감'을 써서 보냅니다.
+  // 학생들은 속력 탐구의 수업 전·수업 후 단계에서 자신감 점수 다음에 '내가 생각하는 자기효능감'을 써서 보냅니다.
   // 이 화면은 그 단어를 반별 구름으로 보여 주기만 합니다. (입력은 speed.js의 openEfficacy)
   // 단원 탐구 진술(동작의 개선은 기능 발달을 가져오고 자기효능감에 영향을 준다)과 가까운 단어는 색으로 강조합니다.
-  // 단어는 SpeedWords 시트에 phase 'after'로 저장되고, 오늘 낸 단어만 보여 줍니다.
+  // 단어는 SpeedWords 시트에 phase before/after로 저장되고, 오늘 낸 단어만 보여 줍니다.
   const SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbw5mlmLxwSTXB7q7lsbqlGjWfkU9aTUwmwFSKeiK_Y9OyDX-eqx51AAkayE6qtAkCQS/exec';
   const QUESTION = '내가 생각하는 자기효능감은?';
-  const PHASE = 'after';
+  const PHASES = [
+    { key: 'before', label: '수업 전' },
+    { key: 'after', label: '수업 후' },
+    { key: 'compare', label: '전 ↔ 후 비교' }
+  ];
   // 탐구 진술의 세 부분과 가까운 단어. 띄어쓰기를 뺀 단어에 아래 말이 들어 있으면 그 묶음으로 셉니다.
   const GROUPS = [
     { key: 'move', cls: 'g-move', color: 'var(--blue-500)', label: '동작 개선', sub: '출발·방향 전환·보폭·효율',
@@ -20,10 +24,11 @@
   ];
   const POLL_MS = 5000;
   const CLASS_KEY = 'movement-records-selected-class-v1';
+  const PHASE_KEY = 'speed-words-phase-v1';
 
   let words = [];
   // highlight: 탐구 진술 단어만 색으로 (끄면 멘티미터처럼 모든 단어가 여러 색)
-  const state = { classNo: 1, classes: [1], highlight: false };
+  const state = { classNo: 1, classes: [1], phase: 'before', highlight: false };
 
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (v) => String(v).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
@@ -151,10 +156,31 @@
 
   function render() {
     $('class-tabs').innerHTML = state.classes.map((c) => `<button type="button" class="class-tab${c === state.classNo ? ' is-selected' : ''}" role="tab" aria-selected="${c === state.classNo}" data-class="${c}">${c}반</button>`).join('');
-    const list = wordsFor(PHASE);
-    $('phase-label').textContent = `${state.classNo}반 · 속력 탐구를 마치며`;
+    $('phase-tabs').innerHTML = PHASES.map((p) => `<button type="button" class="group-tab${p.key === state.phase ? ' is-selected' : ''}" role="tab" aria-selected="${p.key === state.phase}" data-phase="${p.key}">${p.label}</button>`).join('');
+    const compare = state.phase === 'compare';
+    $('ask-view').hidden = compare;
+    $('compare-view').hidden = !compare;
+    if (compare) {
+      const before = wordsFor('before');
+      const after = wordsFor('after');
+      drawCloud($('before-cloud'), before, true);
+      drawCloud($('after-cloud'), after, true);
+      $('before-stats').innerHTML = statsHtml(before);
+      $('after-stats').innerHTML = statsHtml(after);
+      const b = statsOf(before);
+      const a = statsOf(after);
+      $('growth-row').innerHTML = GROUPS.map((g) => `<div class="growth-card">
+          <b style="color:${g.color}">${g.label}</b><small>${g.sub}</small>
+          <div class="nums">${b.byGroup[g.key]}<em> → </em>${a.byGroup[g.key]}<em>개</em></div>
+        </div>`).join('');
+      $('legend-compare').innerHTML = legendHtml();
+      return;
+    }
+    const phase = PHASES.find((p) => p.key === state.phase);
+    const list = wordsFor(state.phase);
+    $('phase-label').textContent = `${state.classNo}반 · ${phase.label}`;
     $('question-text').textContent = QUESTION;
-    $('cloud-title').textContent = `${state.classNo}반 자기효능감 단어 구름`;
+    $('cloud-title').textContent = `${state.classNo}반 ${phase.label} 단어 구름`;
     drawCloud($('cloud'), list, state.highlight);
     $('highlight-btn').textContent = state.highlight ? '🎨 모든 단어 색으로 보기' : '🔍 탐구 진술 단어 찾기';
     $('highlight-btn').classList.toggle('is-on', state.highlight);
@@ -191,11 +217,14 @@
 
   // ---- 입력 ----
   document.addEventListener('click', (event) => {
-    const t = event.target.closest('[data-class],[data-action]');
+    const t = event.target.closest('[data-class],[data-phase],[data-action]');
     if (!t) return;
     if (t.dataset.class) {
       state.classNo = Number(t.dataset.class);
       try { localStorage.setItem(CLASS_KEY, String(state.classNo)); } catch (e) { /* 무시 */ }
+    } else if (t.dataset.phase) {
+      state.phase = t.dataset.phase;
+      try { localStorage.setItem(PHASE_KEY, state.phase); } catch (e) { /* 무시 */ }
     } else if (t.dataset.action === 'toggle-show') {
       setShow(!document.body.classList.contains('is-show'));
     } else if (t.dataset.action === 'toggle-highlight') {
@@ -219,6 +248,10 @@
   async function init() {
     // 교사 현황의 '단어 구름 열기'는 ?show=1 로 열어 바로 크게 보여 줍니다.
     if (new URLSearchParams(window.location.search).get('show') === '1') setShow(true);
+    try {
+      const stored = localStorage.getItem(PHASE_KEY);
+      if (PHASES.some((p) => p.key === stored)) state.phase = stored;
+    } catch (e) { /* 무시 */ }
     render();
     await loadClasses();
     render();
