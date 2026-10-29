@@ -1351,8 +1351,9 @@ function saveSpeedWord_(request) {
   if (!(classNo >= 1 && classNo <= 20 && Math.floor(classNo) === classNo)) {
     throwAppError_('INVALID_CLASS', 'class는 1~20 사이의 정수여야 합니다.', 400);
   }
-  if (request.phase !== 'before' && request.phase !== 'after') {
-    throwAppError_('INVALID_PHASE', 'phase는 before 또는 after여야 합니다.', 400);
+  // before·after: 기록 줄이기(수업 전·후), efficacy: 내가 생각하는 자기효능감, gain: 이번 수업에서 얻은 것
+  if (['before', 'after', 'efficacy', 'gain'].indexOf(request.phase) === -1) {
+    throwAppError_('INVALID_PHASE', 'phase는 before, after, efficacy, gain 중 하나여야 합니다.', 400);
   }
   var word = String(request.word == null ? '' : request.word).replace(/\s+/g, ' ').trim();
   if (!word || word.length > SPEED_WORD_MAX_LENGTH) {

@@ -97,10 +97,15 @@
   .conf-actions { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 9px; }
   .conf-actions .primary-button { min-width: 220px; padding: 0 24px; font-size: 16px; }
   .conf-actions .secondary-button { padding: 0 20px; }
-  .efficacy-row { margin-top: 18px; }
-  .efficacy-row input { width: 100%; min-height: 64px; padding: 0 20px; border: 2px solid var(--line); border-radius: 14px; font: inherit; font-size: 22px; font-weight: 700; color: var(--navy-900); }
-  .efficacy-row input:focus { outline: none; border-color: var(--blue-500); }
-  .efficacy-error { margin: 10px 0 0; padding: 12px 16px; border-radius: 12px; background: #fff0ec; color: #c2410c; font-size: 15px; font-weight: 800; }
+  .word-row { margin-top: 18px; }
+  .word-row input { width: 100%; min-height: 64px; padding: 0 20px; border: 2px solid var(--line); border-radius: 14px; font: inherit; font-size: 22px; font-weight: 700; color: var(--navy-900); }
+  .word-row input:focus { outline: none; border-color: var(--blue-500); }
+  .result-words { margin: 10px 0 0; display: grid; gap: 6px; color: var(--navy-900); font-size: 15px; }
+  .result-words:empty { display: none; }
+  .result-words b { margin-right: 6px; color: var(--muted); font-size: 13px; }
+  .cloud-link { margin-top: 14px; display: inline-flex; align-items: center; padding: 0 20px; text-decoration: none; }
+  .cloud-link[hidden] { display: none; }
+  .word-error { margin: 10px 0 0; padding: 12px 16px; border-radius: 12px; background: #fff0ec; color: #c2410c; font-size: 15px; font-weight: 800; }
   .conf-scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; }
 
   /* 학생 단계 카드 (성장판과 같은 모양): 끝난 단계는 ✓, 지금 단계는 남색 */
@@ -234,30 +239,30 @@
       </div>
     </section>
 
-    <!-- 2. 방식 고르고 측정 -->
-    <!-- 1-2. 내가 생각하는 자기효능감 (수업 전·후 자신감 다음) -->
-    <section class="screen" data-screen="efficacy" hidden>
+    <!-- 1-2. 단어 구름 질문 (수업 전: 기록 줄이기 / 수업 후: 기록 줄이기·자기효능감·얻은 것) -->
+    <section class="screen" data-screen="word" hidden>
       <div class="screen-topbar">
         <button class="back-button" type="button" data-action="go-pick"><span aria-hidden="true">←</span> 학생 선택</button>
       </div>
       <div class="page-head" style="margin-top:40px">
-        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>자기효능감</p>
-        <h1 id="efficacy-title"></h1>
-        <p id="efficacy-sub"></p>
+        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span><span id="word-eyebrow"></span></p>
+        <h1 id="word-title"></h1>
+        <p id="word-sub"></p>
       </div>
       <div class="panel">
-        <h2>내가 생각하는 자기효능감은?</h2>
-        <form class="efficacy-row" id="efficacy-form" autocomplete="off">
-          <input id="efficacy-input" maxlength="20" placeholder="한두 단어로 써요" aria-label="내가 생각하는 자기효능감">
+        <h2 id="word-question"></h2>
+        <form class="word-row" id="word-form" autocomplete="off">
+          <input id="word-input" maxlength="20" placeholder="한두 단어로 써요">
         </form>
-        <p class="efficacy-error" id="efficacy-error" role="alert" hidden></p>
+        <p class="word-error" id="word-error" role="alert" hidden></p>
         <div class="conf-actions">
-          <button type="submit" form="efficacy-form" class="primary-button" id="efficacy-send" disabled>먼저 써 주세요</button>
-          <button type="button" class="secondary-button" id="efficacy-skip" data-action="efficacy-skip" hidden>보내지 않고 결과 보기</button>
+          <button type="submit" form="word-form" class="primary-button" id="word-send" disabled>먼저 써 주세요</button>
+          <button type="button" class="secondary-button" id="word-skip" data-action="word-skip" hidden>보내지 않고 넘어가기</button>
         </div>
       </div>
     </section>
 
+    <!-- 2. 방식 고르고 측정 -->
     <section class="screen" data-screen="run" hidden>
       <div class="timer-layout">
         <div class="timer-intro speed-intro">
@@ -342,6 +347,8 @@
         </div>
         <div class="coach" id="coach-box" hidden></div>
         <p class="conf-line" id="result-conf"></p>
+        <p class="result-words" id="result-words"></p>
+        <a class="secondary-button cloud-link" id="result-cloud" href="./words.html" hidden>☁ 우리 반 단어 구름 보기</a>
       </div>
       <div class="link-row">
         <button type="button" class="primary-button" data-action="back-run">▶ 다시 달리기</button>
