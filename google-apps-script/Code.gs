@@ -1167,7 +1167,7 @@ function normalizeOptionalText_(value, maxLength) {
 }
 
 // ---- 속력 탐구 AI 코칭 ----
-// 학생 이름은 받지 않고, 방식별 평균속력(m/s)과 보폭(m) 숫자만 받습니다.
+// 학생 이름은 받지 않고, 방식별 평균속력(m/s) 숫자만 받습니다. (예전 화면이 보내는 보폭 값도 받아 둡니다)
 
 function normalizeSpeeds_(value) {
   var speeds = {};
@@ -1195,7 +1195,7 @@ function speedCoach_(request) {
     '학생이 같은 40m를 세 가지 왕복 방식으로 달린 평균속력이야. 방향 전환 횟수는 5m×4왕복 7번, 10m×2왕복 3번, 20m×1왕복 1번이야.',
     lines.join('\n'),
     '규칙: 한국어 두 문장 이내, 80자 안팎. 첫 문장은 숫자를 근거로 잘한 점 하나, 둘째 문장은 다음에 바꿀 점 하나.',
-    '바꿀 점은 출발 자세, 방향 전환 자세, 보폭과 보수 중에서만 골라. "속도", "변위", "가속도"라는 말은 쓰지 말고 "속력", "가속", "감속"만 써.'
+    '바꿀 점은 출발 자세, 방향 전환 자세 중에서만 골라. "속도", "변위", "가속도"라는 말은 쓰지 말고 "속력", "가속", "감속"만 써.'
   ].join('\n');
   var ai = callGemini_(prompt);
   return jsonResponse_({ ok: true, text: ai || ruleSpeedCoach_(speeds, stride), source: ai ? 'ai' : 'rule' });
