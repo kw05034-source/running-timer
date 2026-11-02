@@ -81,7 +81,7 @@ button:focus-visible, a:focus-visible {
 }
 
 .brand-name, .brand-context { display: block; }
-.brand-name { font-size: 15px; font-weight: 800; letter-spacing: -0.03em; }
+.brand-name { font-size: 15px; font-weight: 800; letter-spacing: -0.03em; word-break: keep-all; }
 .brand-context { margin-top: 1px; color: #a7b7d0; font-size: 11px; font-weight: 500; }
 
 .header-badge {
