@@ -22,11 +22,21 @@
   const TEACHER_UNLOCK_KEY = 'growth-teacher-unlocked';
   const TEACHER_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
   const CLASS_KEY = 'movement-records-selected-class-v1';
+  // 짝 피드백: 랭킹 도전 전에 짝이 나를 보고 체크합니다. 시트(SpeedPeer)에 저장하고, 이 기기에도 남겨 둡니다.
+  const PEER_KEY = 'speed-peer-v1';
+  const PEER_CHECKS = [
+    { key: 'start', name: '출발 자세', checks: ['한 발을 앞에 두고 무릎을 굽혀 몸을 앞으로 기울였다', '첫 3~4걸음을 짧고 빠르게 밀어냈다', '출발 신호에 바로 반응했다'] },
+    { key: 'turn', name: '방향 전환', checks: ['라인 2~3걸음 전부터 보폭을 줄이고 몸을 낮췄다', '바깥발로 라인을 짚고 강하게 밀어냈다', '상체를 먼저 돌려 바로 다시 가속했다'] }
+  ];
 
   let students = [];
   let records = [];
   // 자신감 점수 {student_id: {before, after}} (SpeedConfidence 시트)
   let confidence = {};
+  // 선생님이 성장판 교사 화면에서 정한 짝 번호 {student_id: "3"} (Students 응답에 함께 와요)
+  let teacherPairs = {};
+  // 짝 피드백 {student_id: {by, start: [0,1,1], turn: [1,0,0]}}
+  let peer = {};
   // 단어 구름 질문. SpeedWords 시트의 phase 칸에 질문 이름을 넣어 구분합니다.
   // before·after는 같은 질문(기록 줄이기)을 수업 전·후에 두 번, efficacy·gain은 수업 후에만 묻습니다.
   // 한 화면에 질문을 모두 보여 주고, 저장은 한 번에 보냅니다(통신 한 번).
@@ -93,7 +103,7 @@
 
   // ---- 학생 단계 카드 ----
   // 수업 전 자신감 → 세 가지 방식 → 랭킹 도전 → 수업 후 자신감. 성장판과 같은 모양으로 보여 줍니다.
-  const JOURNEY_SCREENS = ['confidence', 'run', 'confirm', 'result'];
+  const JOURNEY_SCREENS = ['confidence', 'run', 'confirm', 'result', 'peer'];
   function journeySteps(id) {
     const best = bestSpeeds(id);
     const c = confidence[id] || {};
@@ -101,6 +111,7 @@
     return [
       { key: 'before', label: '수업 전', sub: '자신감·내 생각', done: c.before !== undefined },
       ...METHODS.map((m) => ({ key: m.key, label: m.label, sub: m.key === '20x1' ? '걸음 수로 보폭' : `방향 전환 ${m.turns}번`, done: !!best[m.key] })),
+      { key: 'peer', label: '짝 피드백', sub: '출발·방향 전환', done: !!peer[id] },
       { key: 'challenge', label: '랭킹 도전', sub: '한 방식 골라 다시', done: allThree && speedRecordsOf(id).length > METHODS.length },
       { key: 'after', label: '수업 후', sub: '자신감·내 생각', done: !!c.after }
     ];
@@ -108,6 +119,7 @@
 
   function currentStepKey() {
     if (state.screen === 'confidence') return state.confPhase;
+    if (state.screen === 'peer') return 'peer';
     if (state.method) {
       const done = !!bestSpeeds(state.studentId)[state.method];
       const allThree = METHODS.every((m) => bestSpeeds(state.studentId)[m.key]);
@@ -126,6 +138,10 @@
     const current = currentStepKey() || (steps.find((st) => !st.done) || {}).key;
     $('journey-name').textContent = student.name;
     $('journey-meta').textContent = `${student.class}반 · ${student.group_or_team} · ${student.number}번`;
+    // 달리는 동안 짝이 남은 왕복을 알려 줄 수 있게 짝 이름을 늘 보여 줘요.
+    const mates = partnersOf(student.student_id);
+    $('journey-partner').hidden = !mates.length;
+    $('journey-partner').textContent = `🤝 내 짝: ${mates.map((m) => `${m.number}번 ${m.name}`).join(' · ')}`;
     $('journey-progress').textContent = `${steps.filter((st) => st.done).length}/${steps.length}단계 완료`;
     const locked = state.timer === 'running' || state.screen === 'confirm';
     $('journey-steps').innerHTML = steps.map((st, i) => `
@@ -138,6 +154,7 @@
   function openStep(key) {
     const id = state.studentId;
     if (key === 'before' || key === 'after') { openConfidence(id, key); return; }
+    if (key === 'peer') { openPeer(id); return; }
     if (key === 'challenge') {
       openRun(id, true);
       state.challenge = true;
@@ -202,7 +219,7 @@
     $('timer-status-text').textContent = state.timer === 'running' ? '측정 중' : (state.method ? `${METHODS.find((m) => m.key === state.method).label} 준비` : '방식을 골라 주세요');
     $('start-btn').disabled = state.timer !== 'idle' || !state.method;
     $('stop-btn').disabled = state.timer !== 'running';
-    $('run-hint').textContent = state.timer === 'running' ? '도착하면 STOP(또는 Enter)!' : (state.method ? 'START(또는 Enter)를 누르면 출발이에요.' : (state.challenge ? '랭킹 도전! 가장 자신 있는 방식을 골라요.' : '먼저 이번에 뛸 방식을 고르세요.'));
+    $('run-hint').textContent = state.timer === 'running' ? '도착하면 STOP(또는 Enter)!' : (state.method ? 'START(또는 Enter)를 누르면 출발이에요.' : (state.challenge ? `랭킹 도전! 가장 자신 있는 방식을 골라요.${peerTip(state.studentId)}` : '먼저 이번에 뛸 방식을 고르세요.'));
   }
 
   // ---- 자신감 (1~10) + 내 생각 ----
@@ -336,6 +353,128 @@
     const names = students.filter((st) => st.class === getStudent(state.studentId)?.class).flatMap((st) => [st.name, st.name.length === 3 ? st.name.slice(1) : null]).filter(Boolean);
     if (names.some((n) => bare.includes(n))) return '친구 이름은 쓰지 않아요. 내 생각을 낱말로 써 주세요.';
     return null;
+  }
+
+  // ---- 짝 ----
+  // 성장판(growth.js)과 같은 규칙: 선생님이 정한 짝 번호가 있으면 그 짝, 없으면 반마다 남·여 번호순으로 k번째끼리 짝.
+  // 남는 학생끼리 둘씩, 한 명이 남으면 앞 짝에 붙여 3인 1조. 조 이름이 견학·불참으로 시작하면 빼요.
+  const isOut = (s) => /^(견학|불참)/.test(s.group_or_team);
+  const byNo = (a, b) => a.number - b.number;
+  function autoGroups(classNo) {
+    const mates = students.filter((s) => s.class === Number(classNo) && !isOut(s));
+    const boys = mates.filter((s) => s.group_or_team.startsWith('남')).sort(byNo);
+    const girls = mates.filter((s) => s.group_or_team.startsWith('여')).sort(byNo);
+    const inTwos = (list) => { const out = []; for (let k = 0; k < list.length; k += 2) out.push(list.slice(k, k + 2)); return out; };
+    let groups;
+    if (boys.length && girls.length) {
+      const n = Math.min(boys.length, girls.length);
+      groups = Array.from({ length: n }, (_, k) => [boys[k], girls[k]]).concat(inTwos([...boys.slice(n), ...girls.slice(n)]));
+    } else {
+      groups = inTwos([...mates].sort(byNo));
+    }
+    if (groups.length > 1 && groups[groups.length - 1].length === 1) groups[groups.length - 2].push(groups.pop()[0]);
+    return groups;
+  }
+  // 내 다음 사람부터 차례로. 3인 1조면 A→B, B→C, C→A로 돌아가며 봐 줘요.
+  function partnersOf(id) {
+    const me = getStudent(id);
+    if (!me || isOut(me)) return [];
+    const label = teacherPairs[id];
+    const group = label
+      ? students.filter((s) => s.class === me.class && !isOut(s) && teacherPairs[s.student_id] === label).sort(byNo)
+      : autoGroups(me.class).find((g) => g.some((s) => s.student_id === id)) || [];
+    const i = group.findIndex((s) => s.student_id === id);
+    return i < 0 ? [] : group.slice(i + 1).concat(group.slice(0, i));
+  }
+
+  // ---- 짝 피드백 (랭킹 도전 전) ----
+  function readPeerLocal() {
+    try { return JSON.parse(localStorage.getItem(PEER_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function writePeerLocal() {
+    try { localStorage.setItem(PEER_KEY, JSON.stringify(peer)); } catch (e) { /* 저장소를 못 쓰면 이번 화면에서만 씀 */ }
+  }
+  peer = readPeerLocal();
+  const peerUnsent = new Set();
+  const peerScore = (p, key) => p[key].reduce((a, b) => a + (b ? 1 : 0), 0);
+  // 체크가 적은 쪽이 고칠 점. 같으면 오늘 주제인 방향 전환.
+  const peerWeak = (p) => (peerScore(p, 'start') < peerScore(p, 'turn') ? 'start' : 'turn');
+  function peerTip(studentId) {
+    const p = peer[studentId];
+    if (!p) return '';
+    const s = PEER_CHECKS.find((c) => c.key === peerWeak(p));
+    const miss = s.checks.find((_, j) => !p[s.key][j]);
+    return miss ? ` 짝 피드백: ${s.name}에서 "${miss}"를 신경 써 봐요.` : ' 짝 피드백: 출발과 방향 전환 모두 좋아요!';
+  }
+
+  function openPeer(studentId) {
+    const student = getStudent(studentId);
+    if (!student) return;
+    state.studentId = studentId;
+    const mates = partnersOf(studentId);
+    const saved = peer[studentId];
+    state.peerDraft = saved ? JSON.parse(JSON.stringify(saved)) : { by: (mates[0] || {}).student_id || '', start: [0, 0, 0], turn: [0, 0, 0] };
+    state.peerSaving = false;
+    $('peer-title').textContent = `${student.name}, 랭킹 도전 전에`;
+    renderPeer();
+    setScreen('peer');
+  }
+
+  function renderPeer() {
+    const student = getStudent(state.studentId);
+    const d = state.peerDraft;
+    const mates = partnersOf(student.student_id);
+    const others = students.filter((s) => s.class === student.class && s.student_id !== student.student_id && !isOut(s)).sort(byNo);
+    if (!getStudent(d.by) && others[0]) d.by = (mates[0] || others[0]).student_id;
+    const by = getStudent(d.by);
+    $('peer-who').innerHTML = `<b>${by ? `${escapeHtml(by.number)}번 ${escapeHtml(by.name)}` : '짝'}</b>이(가) ${escapeHtml(student.name)}이(가) 뛰는 모습을 보고 체크해 줘요.`;
+    $('peer-by').innerHTML = others.map((s) => `<option value="${escapeHtml(s.student_id)}"${s.student_id === d.by ? ' selected' : ''}>${escapeHtml(s.number)}번 ${escapeHtml(s.name)}${mates.some((m) => m.student_id === s.student_id) ? ' (내 짝)' : ''}</option>`).join('');
+    $('peer-cards').innerHTML = PEER_CHECKS.map((c) => `
+      <div class="peer-card peer-card--${c.key}">
+        <h3>${c.name}<span>${peerScore(d, c.key)}/3</span></h3>
+        ${c.checks.map((t, j) => `<label class="peer-chk"><input type="checkbox" data-peer-check="${c.key}:${j}" ${d[c.key][j] ? 'checked' : ''} ${state.peerSaving ? 'disabled' : ''}><span>${escapeHtml(t)}</span></label>`).join('')}
+      </div>`).join('');
+    $('peer-save').disabled = state.peerSaving;
+    $('peer-save').innerHTML = state.peerSaving ? '저장하는 중...' : '<span aria-hidden="true">✓</span> 저장하고 랭킹 도전하러 가기';
+  }
+
+  async function savePeer() {
+    const student = getStudent(state.studentId);
+    if (!student || state.peerSaving) return;
+    const d = state.peerDraft;
+    state.peerSaving = true;
+    renderPeer();
+    // 예전 Apps Script 배포라 짝 피드백 칸이 없으면 이 기기에만 남겨요.
+    let savedToSheet = false;
+    try {
+      const res = await postJson({ type: 'speed_peer', student_id: student.student_id, observer_id: d.by, start: d.start, turn: d.turn });
+      savedToSheet = !!res.ok;
+    } catch (error) {
+      console.warn('짝 피드백 시트 저장 실패, 이 기기에만 남겨요.', error);
+    }
+    peer[student.student_id] = JSON.parse(JSON.stringify(d));
+    if (savedToSheet) peerUnsent.delete(student.student_id); else peerUnsent.add(student.student_id);
+    writePeerLocal();
+    state.peerSaving = false;
+    openStep('challenge');
+    showToast(savedToSheet ? `짝 피드백을 저장했어요!${peerTip(student.student_id)}` : `이 기기에 저장했어요.${peerTip(student.student_id)}`);
+  }
+
+  async function refreshPeer() {
+    try {
+      const res = await (await fetch(`${SHEETS_ENDPOINT}?action=speed_peer`)).json();
+      if (!res.ok || !Array.isArray(res.data)) return false;
+      const bits = (text) => { const v = String(text ?? '').split(',').map((x) => (Number(x) ? 1 : 0)); return [v[0] || 0, v[1] || 0, v[2] || 0]; };
+      // 시트가 기준이에요(초기화하면 다른 기기에서도 지워지게). 이 화면에서 시트에 못 보낸 것만 남겨 둬요.
+      const next = {};
+      res.data.forEach((r) => { next[String(r.student_id)] = { by: String(r.observer_id || ''), start: bits(r.start_checks), turn: bits(r.turn_checks) }; });
+      peerUnsent.forEach((id) => { if (peer[id] && !next[id]) next[id] = peer[id]; });
+      peer = next;
+      writePeerLocal();
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   function confidenceText(studentId) {
@@ -496,6 +635,8 @@
     ].filter(Boolean).join('');
     // 수업 후 질문까지 마친 학생만 우리 반 단어 구름을 봐요. (먼저 보면 친구 단어를 따라 쓰기 쉬워서)
     $('result-cloud').hidden = !(confidence[student.student_id] || {}).after;
+    // 세 방식을 다 뛰었으면 랭킹 도전 전에 짝 피드백으로 안내해요.
+    $('result-peer').hidden = !(METHODS.every((m) => bestSpeeds(student.student_id)[m.key]) && !peer[student.student_id]);
     setScreen('result');
   }
 
@@ -583,7 +724,7 @@
     $('class-ai-box').hidden = true;
     setScreen('board');
     // 다른 크롬북에서 저장한 기록도 보이도록 시트에서 다시 불러와 그립니다.
-    Promise.all([refreshRecords(), refreshConfidence()]).then(([ok]) => { if (ok && state.screen === 'board') renderBoard(); });
+    Promise.all([refreshRecords(), refreshConfidence(), refreshPeer()]).then(([ok]) => { if (ok && state.screen === 'board') renderBoard(); });
   }
 
   // ---- 교사 현황 (선생님 번호로 잠금) ----
@@ -619,6 +760,7 @@
     $('teacher-summary').innerHTML = [
       `참여 <strong>${rows.filter((r) => r.runs).length}</strong>/${rows.length}명`,
       `세 방식 모두 <strong>${rows.filter((r) => METHODS.every((m) => r.best[m.key])).length}</strong>명`,
+      `짝 피드백 <strong>${rows.filter((r) => peer[r.s.student_id]).length}</strong>명`,
       `수업 후 자신감까지 <strong>${afters.length}</strong>명`,
       `자신감 평균 <strong>${mean(befores)} → ${mean(afters)}</strong>점`
     ].map((t) => `<span class="t-chip">${t}</span>`).join('');
@@ -643,7 +785,7 @@
     $('pin-error').hidden = true;
     renderTeacher();
     if (!teacherUnlocked) { $('pin-input').focus(); return; }
-    Promise.all([refreshRecords(), refreshConfidence()]).then(() => { if (state.screen === 'teacher') renderTeacher(); });
+    Promise.all([refreshRecords(), refreshConfidence(), refreshPeer()]).then(() => { if (state.screen === 'teacher') renderTeacher(); });
   }
 
   async function unlockTeacher(event) {
@@ -691,12 +833,14 @@
     const inTarget = (id) => !classNo || getStudent(id)?.class === classNo;
     Object.keys(confidence).filter(inTarget).forEach((id) => { delete confidence[id]; });
     Object.keys(myWords).filter(inTarget).forEach((id) => { delete myWords[id]; });
+    Object.keys(peer).filter(inTarget).forEach((id) => { delete peer[id]; });
+    writePeerLocal();
     const steps = readSteps();
     Object.keys(steps).filter(inTarget).forEach((id) => { delete steps[id]; });
     writeSteps(steps);
     $('reset-pin').value = '';
     $('reset-form').hidden = true;
-    await Promise.all([refreshRecords(), refreshConfidence()]);
+    await Promise.all([refreshRecords(), refreshConfidence(), refreshPeer()]);
     renderTeacher();
     showToast(`${classNo ? `${classNo}반` : '모든 반'} 2차시 기록을 지웠어요. 지운 내용은 시트의 '백업' 탭에 있어요.`);
   }
@@ -757,6 +901,7 @@
     try {
       const res = await (await fetch(`${SHEETS_ENDPOINT}?action=students`)).json();
       if (!res.ok) throw new Error(res.error?.message);
+      if (res.pairs && typeof res.pairs === 'object') teacherPairs = res.pairs;
       students = res.data.map((r) => ({
         student_id: String(r.student_id), class: Number(r.class), number: Number(r.number),
         name: String(r.name), group_or_team: String(r.group_or_team)
@@ -770,7 +915,7 @@
     const stored = Number(localStorage.getItem(CLASS_KEY));
     state.classNo = classes.includes(stored) ? stored : classes[0];
     renderPick();
-    const [ok] = await Promise.all([refreshRecords(), refreshConfidence()]);
+    const [ok] = await Promise.all([refreshRecords(), refreshConfidence(), refreshPeer()]);
     if (ok) renderPick();
   }
 
@@ -794,6 +939,8 @@
     else if (action === 'back-run') openRun(state.studentId);
         else if (action === 'conf-skip') skipConfidence();
     else if (action === 'conf-after') openConfidence(state.studentId, 'after');
+    else if (action === 'open-peer') openPeer(state.studentId);
+    else if (action === 'peer-save') savePeer();
     else if (action === 'coach') coach();
     else if (action === 'go-pick') { setScreen('pick'); renderPick(); }
     else if (action === 'go-board') openBoard();
@@ -820,6 +967,13 @@
     renderConfidence();
   });
   $('conf-form').addEventListener('submit', saveConfidence);
+  $('peer-cards').addEventListener('change', (event) => {
+    const [key, j] = (event.target.dataset.peerCheck || '').split(':');
+    if (!key || state.peerSaving) return;
+    state.peerDraft[key][Number(j)] = event.target.checked ? 1 : 0;
+    renderPeer();
+  });
+  $('peer-by').addEventListener('change', (event) => { state.peerDraft.by = event.target.value; renderPeer(); });
   $('pin-form').addEventListener('submit', unlockTeacher);
   $('reset-form').addEventListener('submit', resetSpeed);
 
