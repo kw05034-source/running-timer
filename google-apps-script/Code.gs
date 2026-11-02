@@ -60,9 +60,9 @@ var GROWTH_HEADERS = [
 ];
 var GROWTH_FOCUS_VALUES = ['', 'start', 'turn', 'finish'];
 
-var AVAILABLE_ACTIONS = ['students', 'records', 'growth', 'speed_confidence', 'speed_words', 'health'];
+var AVAILABLE_ACTIONS = ['students', 'records', 'growth', 'speed_confidence', 'speed_words', 'speed_peer', 'health'];
 // 화면이 이 배포가 무엇을 할 수 있는지 확인할 때 씁니다. reset_scope: 1차시·2차시를 따로 초기화
-var FEATURES = ['reset_scope'];
+var FEATURES = ['reset_scope', 'speed_peer'];
 
 // 전체 초기화: 선생님 화면의 번호(성장판과 같은 번호)를 SHA-256으로 비교합니다.
 var RESET_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
@@ -96,6 +96,19 @@ var SPEED_CONFIDENCE_HEADERS = [
   'name',
   'confidence_before',
   'confidence_after'
+];
+// 속력 탐구 짝 피드백: 랭킹 도전 전에 짝이 나를 보고 체크한 내용 (학생당 한 줄, 덮어씀)
+// start_checks·turn_checks: "1,0,1" (출발 자세 / 방향 전환 각 3칸)
+var SPEED_PEER_SHEET_NAME = 'SpeedPeer';
+var SPEED_PEER_HEADERS = [
+  'updated_at',
+  'student_id',
+  'class',
+  'number',
+  'name',
+  'observer_id',
+  'start_checks',
+  'turn_checks'
 ];
 var SPEED_METHOD_LABELS = { '5x4': '5m×4왕복', '10x2': '10m×2왕복', '20x1': '20m×1왕복' };
 
@@ -149,6 +162,16 @@ function doGet(e) {
         ok: true,
         action: action,
         data: readSheetRows_(wordsSpreadsheet, SPEED_WORDS_SHEET_NAME, SPEED_WORDS_HEADERS)
+      });
+    }
+
+    if (action === 'speed_peer') {
+      var peerSpreadsheet = getSpreadsheet_();
+      getOrCreateSpeedPeerSheet_(peerSpreadsheet);
+      return jsonResponse_({
+        ok: true,
+        action: action,
+        data: readSheetRows_(peerSpreadsheet, SPEED_PEER_SHEET_NAME, SPEED_PEER_HEADERS)
       });
     }
 
@@ -226,6 +249,9 @@ function doPost(e) {
     }
     if (request && typeof request === 'object' && request.type === 'speed_word') {
       return saveSpeedWord_(request);
+    }
+    if (request && typeof request === 'object' && request.type === 'speed_peer') {
+      return saveSpeedPeer_(request);
     }
     validateRequestShape_(request);
     var inputRecord = normalizeRecordInput_(request.record);
@@ -738,7 +764,8 @@ function resetTargets_(scope) {
     return [
       { name: RECORDS_SHEET_NAME, match: isSpeedRecord },
       { name: SPEED_CONFIDENCE_SHEET_NAME },
-      { name: SPEED_WORDS_SHEET_NAME }
+      { name: SPEED_WORDS_SHEET_NAME },
+      { name: SPEED_PEER_SHEET_NAME }
     ];
   }
   return [
@@ -1314,6 +1341,61 @@ function saveSpeedConfidence_(request) {
       sheet.appendRow(row);
     }
     return jsonResponse_({ ok: true, student_id: student.student_id, phase: request.phase, value: value });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ---- 속력 탐구 짝 피드백 ----
+
+function getOrCreateSpeedPeerSheet_(spreadsheet) {
+  var sheet = spreadsheet.getSheetByName(SPEED_PEER_SHEET_NAME);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(SPEED_PEER_SHEET_NAME);
+    sheet.getRange(1, 1, 1, SPEED_PEER_HEADERS.length).setValues([SPEED_PEER_HEADERS]);
+    sheet.setFrozenRows(1);
+    return sheet;
+  }
+  return getValidatedSheet_(spreadsheet, SPEED_PEER_SHEET_NAME, SPEED_PEER_HEADERS);
+}
+
+/**
+ * body: { type: "speed_peer", student_id, observer_id, start: [1,0,1], turn: [0,1,1] }
+ */
+function saveSpeedPeer_(request) {
+  var studentId = normalizeRequiredText_(request.student_id, 'student_id');
+  var observerId = request.observer_id == null ? '' : String(request.observer_id).trim().slice(0, 40);
+  var checks = function (value, name) {
+    if (!Array.isArray(value) || value.length !== 3) {
+      throwAppError_('INVALID_CHECKS', name + '는 칸 3개여야 합니다.', 400);
+    }
+    return value.map(function (v) { return v ? 1 : 0; }).join(',');
+  };
+  var startChecks = checks(request.start, 'start');
+  var turnChecks = checks(request.turn, 'turn');
+  var spreadsheet = getSpreadsheet_();
+  var studentsSheet = getValidatedSheet_(spreadsheet, STUDENTS_SHEET_NAME, STUDENTS_HEADERS);
+  var student = findStudentById_(studentsSheet, studentId);
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throwAppError_('LOCK_TIMEOUT', '동시 저장이 많아 잠금을 획득하지 못했습니다. 잠시 후 다시 시도하세요.', 503);
+  }
+  try {
+    var sheet = getOrCreateSpeedPeerSheet_(spreadsheet);
+    var lastRow = sheet.getLastRow();
+    var ids = lastRow > 1 ? sheet.getRange(2, 2, lastRow - 1, 1).getValues() : [];
+    var rowIndex = -1;
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(student.student_id)) { rowIndex = i + 2; break; }
+    }
+    var row = [new Date(), student.student_id, student['class'], student.number, student.name, observerId, startChecks, turnChecks];
+    if (rowIndex > 0) {
+      sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+    } else {
+      sheet.appendRow(row);
+    }
+    return jsonResponse_({ ok: true, student_id: student.student_id });
   } finally {
     lock.releaseLock();
   }
