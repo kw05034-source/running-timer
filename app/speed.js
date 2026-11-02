@@ -595,13 +595,13 @@
   // ---- 우리 반 현황 ----
   function classSummary() {
     const list = students.filter((s) => s.class === state.classNo);
-    const sums = {}; const counts = {}; const secSums = {};
+    // 반 평균속력은 평균 기록으로 계산해요(40m ÷ 평균 기록). 학생별 속력을 그냥 평균 내면 초와 속력이 어긋나요.
+    const counts = {}; const secSums = {};
     const ranking = [];
     list.forEach((s) => {
       const best = bestSpeeds(s.student_id);
       METHODS.forEach((m) => {
         if (best[m.key]) {
-          sums[m.key] = (sums[m.key] || 0) + best[m.key];
           secSums[m.key] = (secSums[m.key] || 0) + DISTANCE_M / best[m.key];
           counts[m.key] = (counts[m.key] || 0) + 1;
         }
@@ -613,7 +613,7 @@
       }
     });
     const avg = {}; const avgSec = {};
-    METHODS.forEach((m) => { if (counts[m.key]) { avg[m.key] = sums[m.key] / counts[m.key]; avgSec[m.key] = secSums[m.key] / counts[m.key]; } });
+    METHODS.forEach((m) => { if (counts[m.key]) { avgSec[m.key] = secSums[m.key] / counts[m.key]; avg[m.key] = DISTANCE_M / avgSec[m.key]; } });
     ranking.sort((a, b) => b.speed - a.speed);
     return { avg, avgSec, counts, ranking, runners: ranking.length };
   }
