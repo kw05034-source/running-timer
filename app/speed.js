@@ -42,7 +42,7 @@
   const WORD_QUESTIONS = {
     before: { label: '기록 줄이기', q: '같은 40m, 기록을 줄이려면 무엇이 중요할까?' },
     after: { label: '기록 줄이기', q: '같은 40m, 기록을 줄이려면 무엇이 중요할까?', note: '수업 전과 같은 질문이에요' },
-    efficacy: { label: '자기효능감', q: '내가 생각하는 자기효능감이란?' },
+    efficacy: { label: '자기효능감', q: '자기효능감은 어떨 때 높아지는 것 같나요?' },
     gain: { label: '깨달은 것', q: '이번 차시 수업에서 깨달은 것은?' }
   };
   const WORD_FLOW = { before: ['before'], after: ['after', 'efficacy', 'gain'] };
@@ -545,7 +545,7 @@
     const w = myWords[student.student_id] || {};
     $('result-words').innerHTML = [
       (w.before || w.after) && `<span><b>기록 줄이기</b> ${[w.before && `수업 전 "${escapeHtml(w.before)}"`, w.after && `수업 후 "${escapeHtml(w.after)}"`].filter(Boolean).join(' → ')}</span>`,
-      w.efficacy && `<span><b>내가 생각하는 자기효능감</b> "${escapeHtml(w.efficacy)}"</span>`,
+      w.efficacy && `<span><b>자기효능감이 높아질 때</b> "${escapeHtml(w.efficacy)}"</span>`,
       w.gain && `<span><b>이번 차시에서 깨달은 것</b> "${escapeHtml(w.gain)}"</span>`
     ].filter(Boolean).join('');
     // 수업 후 질문까지 마친 학생만 우리 반 단어 구름을 봐요. (먼저 보면 친구 단어를 따라 쓰기 쉬워서)
