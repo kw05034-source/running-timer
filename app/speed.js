@@ -16,8 +16,6 @@
   const MIN_SEC = 3;
   const CHECK_MAX_SEC = 40;
   const ENTER_STOP_GUARD_MS = 300;
-  // 걸음 수(보수)는 시트 구조를 바꾸지 않도록 이 기기에만 저장합니다. {student_id: 걸음 수}
-  const STEPS_KEY = 'speed-steps-v1';
   // 교사 현황 잠금: 성장판(growth.js)과 같은 선생님 번호, 같은 잠금 상태를 씁니다.
   const TEACHER_UNLOCK_KEY = 'growth-teacher-unlocked';
   const TEACHER_PIN_SHA256 = 'a1fb4e703a9ef1fa4936801721ff285a97ac85330856674412e054892afe6972';
@@ -61,17 +59,6 @@
   // 기록(초)과 평균속력을 같이 보여 줍니다. 한 사람 기록은 초 = 40m ÷ 평균속력이에요.
   const fmtBoth = (v, sec = DISTANCE_M / v) => `${sec.toFixed(2)}초 · ${fmtSpeed(v)}`;
 
-  function readSteps() {
-    try { return JSON.parse(localStorage.getItem(STEPS_KEY) || '{}') || {}; } catch (e) { return {}; }
-  }
-  function writeSteps(steps) {
-    try { localStorage.setItem(STEPS_KEY, JSON.stringify(steps)); } catch (e) { /* 저장소를 못 쓰면 이번 화면에서만 씀 */ }
-  }
-  const strideOf = (studentId) => {
-    const steps = Number(readSteps()[studentId]);
-    return steps > 0 ? 20 / steps : null;
-  };
-
   let toastTimer = null;
   function showToast(message) {
     window.clearTimeout(toastTimer);
@@ -110,7 +97,7 @@
     const allThree = METHODS.every((m) => best[m.key]);
     return [
       { key: 'before', label: '수업 전', sub: '자신감·내 생각', done: c.before !== undefined },
-      ...METHODS.map((m) => ({ key: m.key, label: m.label, sub: m.key === '20x1' ? '걸음 수로 보폭' : `방향 전환 ${m.turns}번`, done: !!best[m.key] })),
+      ...METHODS.map((m) => ({ key: m.key, label: m.label, sub: `방향 전환 ${m.turns}번`, done: !!best[m.key] })),
       { key: 'peer', label: '짝 피드백', sub: '출발·방향 전환', done: !!peer[id] },
       { key: 'challenge', label: '랭킹 도전', sub: '한 방식 골라 다시', done: allThree && speedRecordsOf(id).length > METHODS.length },
       { key: 'after', label: '수업 후', sub: '자신감·내 생각', done: !!c.after }
@@ -554,17 +541,9 @@
     $('confirm-method').textContent = `${method.label} (40m)`;
     $('confirm-time').innerHTML = `${sec.toFixed(2)}<small>초</small>`;
     $('confirm-speed').textContent = fmtSpeed(speedOf(sec));
-    $('steps-box').hidden = method.key !== '20x1';
-    $('steps-input').value = readSteps()[student.student_id] || '';
-    updateStridePreview();
     $('save-btn').disabled = false;
     setScreen('confirm');
     if (sec > CHECK_MAX_SEC) showToast(`기록이 ${CHECK_MAX_SEC}초보다 길어요. STOP을 늦게 눌렀다면 취소해 주세요.`);
-  }
-
-  function updateStridePreview() {
-    const steps = Number($('steps-input').value);
-    $('stride-preview').textContent = steps > 0 ? `내 평균 보폭은 약 ${(20 / steps).toFixed(2)} m예요.` : '걸음 수를 넣으면 보폭이 계산돼요.';
   }
 
   async function save() {
@@ -572,12 +551,6 @@
     state.saving = true;
     $('save-btn').disabled = true;
     const record = state.pending;
-    const steps = Number($('steps-input').value);
-    if (!$('steps-box').hidden && steps >= 5 && steps <= 60) {
-      const all = readSteps();
-      all[record.student_id] = steps;
-      writeSteps(all);
-    }
     try {
       const res = await postJson({
         type: 'record',
@@ -623,8 +596,6 @@
     if (!student) return;
     $('result-name').textContent = `${student.name}의 결과`;
     $('result-bars').innerHTML = barsHtml(bestSpeeds(student.student_id));
-    const stride = strideOf(student.student_id);
-    $('result-stride').textContent = stride ? `보폭: 약 ${stride.toFixed(2)} m (20m를 ${readSteps()[student.student_id]}걸음)` : '20m×1을 뛸 때 짝이 걸음 수를 세면 보폭도 나와요.';
     $('coach-box').hidden = true;
     $('result-conf').textContent = confidenceText(student.student_id);
     const w = myWords[student.student_id] || {};
@@ -650,7 +621,7 @@
     $('coach-box').hidden = false;
     $('coach-box').textContent = 'AI가 기록을 살펴보는 중이에요...';
     // 이름은 보내지 않고 숫자만 보냅니다.
-    const body = { type: 'speed_coach', speeds: roundAll(speeds), stride: strideOf(state.studentId) };
+    const body = { type: 'speed_coach', speeds: roundAll(speeds) };
     try {
       const res = await postJson(body);
       if (!res.ok) throw new Error(res.error?.message);
@@ -741,7 +712,7 @@
       const best = bestSpeeds(s.student_id);
       const c = confidence[s.student_id] || {};
       const steps = journeySteps(s.student_id);
-      return { s, best, c, stride: strideOf(s.student_id), runs: speedRecordsOf(s.student_id).length, done: steps.filter((st) => st.done).length, total: steps.length };
+      return { s, best, c, runs: speedRecordsOf(s.student_id).length, done: steps.filter((st) => st.done).length, total: steps.length };
     });
   }
 
@@ -771,13 +742,12 @@
         <td>${r.s.number}</td><td><b>${escapeHtml(r.s.name)}</b> <span class="muted">${escapeHtml(r.s.group_or_team)}</span></td>
         <td class="num">${r.c.before || '<span class="muted">—</span>'}</td>
         ${METHODS.map((m) => `<td class="num">${cell(r.best[m.key])}</td>`).join('')}
-        <td class="num">${r.stride ? `${r.stride.toFixed(2)}m` : '<span class="muted">—</span>'}</td>
         <td class="num">${r.runs}</td>
         <td class="num">${r.c.after || '<span class="muted">—</span>'}</td>
         <td class="num ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}">${diff === null ? '<span class="muted">—</span>' : `${diff > 0 ? '+' : ''}${diff}`}</td>
         <td class="num"><span class="t-progress${r.done === r.total ? ' is-done' : ''}">${r.done}/${r.total}</span></td>
       </tr>`;
-    }).join('') : '<tr><td class="muted" colspan="11">이 반 학생이 없어요.</td></tr>';
+    }).join('') : '<tr><td class="muted" colspan="10">이 반 학생이 없어요.</td></tr>';
   }
 
   function openTeacher() {
@@ -835,9 +805,6 @@
     Object.keys(myWords).filter(inTarget).forEach((id) => { delete myWords[id]; });
     Object.keys(peer).filter(inTarget).forEach((id) => { delete peer[id]; });
     writePeerLocal();
-    const steps = readSteps();
-    Object.keys(steps).filter(inTarget).forEach((id) => { delete steps[id]; });
-    writeSteps(steps);
     $('reset-pin').value = '';
     $('reset-form').hidden = true;
     await Promise.all([refreshRecords(), refreshConfidence(), refreshPeer()]);
@@ -846,8 +813,8 @@
   }
 
   function teacherCsv() {
-    const head = ['번호', '이름', '조', '수업 전 자신감', ...METHODS.flatMap((m) => [`${m.label} 기록(초)`, `${m.label} 평균속력(m/s)`]), '보폭(m)', '달린 횟수', '수업 후 자신감', '자신감 변화'];
-    const lines = teacherRows().map((r) => [r.s.number, r.s.name, r.s.group_or_team, r.c.before || '', ...METHODS.flatMap((m) => (r.best[m.key] ? [(DISTANCE_M / r.best[m.key]).toFixed(2), r.best[m.key].toFixed(2)] : ['', ''])), r.stride ? r.stride.toFixed(2) : '', r.runs, r.c.after || '', r.c.before && r.c.after ? r.c.after - r.c.before : '']);
+    const head = ['번호', '이름', '조', '수업 전 자신감', ...METHODS.flatMap((m) => [`${m.label} 기록(초)`, `${m.label} 평균속력(m/s)`]), '달린 횟수', '수업 후 자신감', '자신감 변화'];
+    const lines = teacherRows().map((r) => [r.s.number, r.s.name, r.s.group_or_team, r.c.before || '', ...METHODS.flatMap((m) => (r.best[m.key] ? [(DISTANCE_M / r.best[m.key]).toFixed(2), r.best[m.key].toFixed(2)] : ['', ''])), r.runs, r.c.after || '', r.c.before && r.c.after ? r.c.after - r.c.before : '']);
     return [head, ...lines].map((row) => row.join('\t')).join('\n');
   }
 
@@ -952,7 +919,6 @@
     else if (action === 'class-ai') classAi();
   });
 
-  $('steps-input').addEventListener('input', updateStridePreview);
   // 칸에서 Enter를 누르면 아직 빈 다음 칸으로 넘어가고, 다 쓰면 저장합니다.
   $('word-fields').addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' || event.isComposing) return;

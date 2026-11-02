@@ -66,9 +66,6 @@
 
   /* 저장 확인 */
   .record-details strong.speed { color: var(--orange-500); font-size: 18px; }
-  .steps-box { padding: 18px 0; border-bottom: 1px solid var(--line); color: var(--navy-800); font-size: 14px; font-weight: 700; }
-  .steps-box input { width: 80px; margin: 0 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; font: inherit; font-size: 20px; text-align: center; }
-  .steps-box p { margin: 8px 0 0; color: var(--muted); font-size: 12px; font-weight: 500; }
 
   /* 결과·현황·자신감 공통 카드 */
   .page-head { margin-bottom: 34px; }
@@ -323,10 +320,6 @@
             <div><dt>방식</dt><dd id="confirm-method"></dd></div>
             <div><dt>평균속력</dt><dd><strong class="speed" id="confirm-speed"></strong></dd></div>
           </dl>
-          <div class="steps-box" id="steps-box" hidden>
-            짝이 센 걸음 수 (갈 때 20m) <input type="number" id="steps-input" min="5" max="60" inputmode="numeric"> 걸음
-            <p id="stride-preview">걸음 수를 넣으면 보폭이 계산돼요.</p>
-          </div>
           <div class="confirm-actions">
             <button class="secondary-button" type="button" data-action="cancel">취소</button>
             <button class="primary-button" type="button" id="save-btn" data-action="save"><span aria-hidden="true">✓</span> 저장</button>
@@ -348,7 +341,6 @@
         <h2>방식별 평균속력</h2>
         <p class="panel-note">방식마다 가장 빠른 기록이에요. 주황색이 가장 빨라요.</p>
         <div class="bars" id="result-bars"></div>
-        <p class="panel-note" id="result-stride"></p>
         <div class="link-row">
           <button type="button" class="ai-button" id="coach-btn" data-action="coach">🤖 AI 한 줄 코칭</button>
         </div>
@@ -443,11 +435,11 @@
         </form>
         <div class="t-table-wrap">
           <table class="t-table">
-            <thead><tr><th>번호</th><th>이름</th><th class="num">수업 전 자신감</th><th class="num">5m×4<br><small>초 · m/s</small></th><th class="num">10m×2<br><small>초 · m/s</small></th><th class="num">20m×1<br><small>초 · m/s</small></th><th class="num">보폭</th><th class="num">달린 횟수</th><th class="num">수업 후 자신감</th><th class="num">변화</th><th class="num">단계</th></tr></thead>
+            <thead><tr><th>번호</th><th>이름</th><th class="num">수업 전 자신감</th><th class="num">5m×4<br><small>초 · m/s</small></th><th class="num">10m×2<br><small>초 · m/s</small></th><th class="num">20m×1<br><small>초 · m/s</small></th><th class="num">달린 횟수</th><th class="num">수업 후 자신감</th><th class="num">변화</th><th class="num">단계</th></tr></thead>
             <tbody id="teacher-rows"></tbody>
           </table>
         </div>
-        <p class="panel-note">방식별 가장 빠른 기록(초)과 그때의 평균속력(m/s)이에요. 보폭은 걸음 수를 입력한 크롬북에서만 보여요.</p>
+        <p class="panel-note">방식별 가장 빠른 기록(초)과 그때의 평균속력(m/s)이에요.</p>
       </div>
     </section>
   </main>
