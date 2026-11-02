@@ -83,6 +83,7 @@
   .tab-btn:active { transform: scale(0.97); }
   .tab-btn.is-selected { color: #fff; background: var(--navy-900); }
 
+  .method-switch[hidden] { display: none; }
   .mode-switch { display: flex; gap: 6px; padding: 4px; border-radius: 11px; background: var(--canvas); }
   .mode-btn { border: 0; background: transparent; color: var(--muted); padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 800; cursor: pointer; transition: color 160ms ease, background 160ms ease; }
   .mode-btn.is-selected { color: var(--navy-900); background: var(--gold-500); }
@@ -198,6 +199,11 @@
         <button class="mode-btn is-selected" type="button" data-mode="best">최고기록 랭킹</button>
         <button class="mode-btn" type="button" data-mode="attempts">도전횟수 랭킹</button>
       </div>
+      <div class="mode-switch method-switch" id="method-switch" role="tablist" aria-label="달리기 방식" hidden>
+        <button class="method-btn mode-btn" type="button" data-method="speed_5x4">5m×4</button>
+        <button class="method-btn mode-btn" type="button" data-method="speed_10x2">10m×2</button>
+        <button class="method-btn mode-btn" type="button" data-method="speed_20x1">20m×1</button>
+      </div>
     </div>
 
     <div class="bus-banner" id="bus-banner">🚌 301번 버스 출발 <b id="bus-sec">10초</b> <span>최고기록이 이 시간 안이면 등교 성공, 넘기면 지각!</span></div>
@@ -233,7 +239,8 @@
   const SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbw5mlmLxwSTXB7q7lsbqlGjWfkU9aTUwmwFSKeiK_Y9OyDX-eqx51AAkayE6qtAkCQS/exec';
   const REFRESH_INTERVAL_MS = 10000;
   const ACTIVITY_TYPE = 'obstacle_run';
-  // ?board=speed 로 열면 2차시 속력 탐구 랭킹판: 세 방식(speed_5x4/10x2/20x1) 중 가장 빠른 평균속력(40m ÷ 기록)으로 순위를 매깁니다.
+  // ?board=speed 로 열면 2차시 랭킹판: 방식(5m×4/10m×2/20m×1)마다 따로, 같은 방식끼리 가장 빠른 기록으로 순위를 매깁니다.
+  // 방향 전환이 적은 방식이 늘 빠르니, 한 줄로 섞으면 순위가 '방식 고르기'로 갈려서 방식별로 나눴어요. ?method=speed_10x2 로 탭을 고를 수 있어요.
   const SPEED_BOARD = new URLSearchParams(window.location.search).get('board') === 'speed';
   const SPEED_DISTANCE_M = 40;
   const SPEED_LABELS = { speed_5x4: '5m×4', speed_10x2: '10m×2', speed_20x1: '20m×1' };
@@ -267,7 +274,8 @@
     records: [],
     availableClasses: [],
     selectedClass: 'all',
-    mode: 'best'
+    mode: 'best',
+    method: SPEED_LABELS[new URLSearchParams(window.location.search).get('method')] ? new URLSearchParams(window.location.search).get('method') : 'speed_5x4'
   };
 
   function escapeHtml(value) {
@@ -301,7 +309,7 @@
   function computeStudentStats(gender) {
     const recordsByStudent = new Map();
     state.records
-      .filter((r) => (SPEED_BOARD ? Boolean(SPEED_LABELS[r.activity_type]) : r.activity_type === ACTIVITY_TYPE))
+      .filter((r) => (SPEED_BOARD ? r.activity_type === state.method : r.activity_type === ACTIVITY_TYPE))
       .forEach((r) => {
         const list = recordsByStudent.get(String(r.student_id)) || [];
         list.push(r);
@@ -314,11 +322,9 @@
       .map((s) => {
         const list = recordsByStudent.get(String(s.student_id)) || [];
         if (SPEED_BOARD) {
-          const top = list.reduce((acc, r) => {
-            const v = SPEED_DISTANCE_M / Number(r.record_seconds);
-            return Number.isFinite(v) && (!acc || v > acc.v) ? { v, sec: Number(r.record_seconds), method: SPEED_LABELS[r.activity_type] } : acc;
-          }, null);
-          return { student: s, attempts: list.length, best: top ? top.v : null, sec: top ? top.sec : null, method: top ? top.method : '' };
+          const secs = list.map((r) => Number(r.record_seconds)).filter((t) => Number.isFinite(t) && t > 0);
+          const sec = secs.length ? Math.min(...secs) : null;
+          return { student: s, attempts: list.length, best: sec === null ? null : SPEED_DISTANCE_M / sec, sec };
         }
         const times = list.map((r) => Number(r.record_seconds));
         const best = times.length ? Math.min(...times) : null;
@@ -327,7 +333,7 @@
   }
 
   function primaryValueOf(entry) {
-    if (SPEED_BOARD && state.mode === 'best') return entry.best === null ? '—' : `${entry.best.toFixed(2)}<small>m/s</small>`;
+    if (SPEED_BOARD && state.mode === 'best') return entry.best === null ? '—' : `${formatSeconds(entry.sec)}<small>초</small>`;
     return state.mode === 'best'
       ? (entry.best === null ? '—' : `${formatSeconds(entry.best)}<small>초</small>`)
       : `${entry.attempts}<small>회</small>`;
@@ -344,7 +350,7 @@
   }
 
   function busBadgeOf(entry) {
-    if (SPEED_BOARD) return state.mode === 'best' && entry.method ? `<span class="method-badge">${entry.method} · ${formatSeconds(entry.sec)}초</span>` : '';
+    if (SPEED_BOARD) return state.mode === 'best' && entry.best !== null ? `<span class="method-badge">평균속력 ${entry.best.toFixed(2)} m/s</span>` : '';
     if (state.mode !== 'best' || entry.best === null) return '';
     return isOnTime(entry)
       ? '<span class="bus-badge ok">🚌 등교 성공</span>'
@@ -501,18 +507,37 @@
     if (!btn) return;
     state.mode = btn.dataset.mode;
     document.getElementById('bus-banner').hidden = SPEED_BOARD || state.mode !== 'best';
-    document.querySelectorAll('.mode-btn').forEach((b) => b.classList.toggle('is-selected', b === btn));
+    document.querySelectorAll('.mode-switch:not(.method-switch) .mode-btn').forEach((b) => b.classList.toggle('is-selected', b === btn));
+    renderBoard();
+  });
+
+  const methodSwitchEl = document.getElementById('method-switch');
+  function renderMethodTabs() {
+    methodSwitchEl.querySelectorAll('.method-btn').forEach((b) => {
+      const on = b.dataset.method === state.method;
+      b.classList.toggle('is-selected', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+    document.querySelector('.brand-context').textContent = `2차시 · ${SPEED_LABELS[state.method]} 랭킹`;
+  }
+  methodSwitchEl.addEventListener('click', (event) => {
+    const btn = event.target.closest('.method-btn');
+    if (!btn) return;
+    state.method = btn.dataset.method;
+    renderMethodTabs();
     renderBoard();
   });
 
   if (SPEED_BOARD) {
+    methodSwitchEl.hidden = false;
     document.title = '움직임 효율 탐구 랭킹판 | 달리기';
     document.querySelector('.brand-name').textContent = '움직임 효율 탐구 랭킹판';
-    document.querySelector('.brand-context').textContent = '2차시 · 가장 빠른 평균속력';
+
     document.querySelector('.brand').href = './speed.html';
     document.querySelector('.back-link').href = './speed.html';
     document.querySelector('.back-link').innerHTML = '<span aria-hidden="true">←</span> 움직임 효율 탐구로';
-    document.querySelector('[data-mode="best"]').textContent = '평균속력 랭킹';
+    document.querySelector('[data-mode="best"]').textContent = '최고기록 랭킹';
+    renderMethodTabs();
     document.getElementById('bus-banner').hidden = true;
   }
   bannerEl.innerHTML = '<div class="loading-banner">데이터를 불러오는 중이에요...</div>';
