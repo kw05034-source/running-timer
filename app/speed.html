@@ -129,17 +129,18 @@
   .partner-chip { padding: 6px 14px; border-radius: 999px; background: var(--blue-100); color: var(--navy-900); font-size: 15px; font-weight: 800; }
   .partner-chip[hidden] { display: none; }
   /* 짝 피드백 */
-  .peer-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px; padding: 16px 20px; border-radius: 16px; background: #fff5e0; color: var(--navy-900); font-size: 17px; }
-  .peer-head label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; }
-  .peer-head select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; font-size: 15px; }
-  .peer-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+  .peer-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+  .peer-card ul { margin: 0; padding: 0; list-style: none; }
+  .peer-card li { padding: 11px 2px; border-top: 1px solid var(--line); color: var(--navy-800); font-size: 16px; font-weight: 700; line-height: 1.45; }
+  .peer-card--cheer { border-top-color: var(--orange-500); }
+  .partner-names { display: flex; flex-wrap: wrap; gap: 14px; }
+  .partner-name { display: flex; align-items: center; gap: 14px; padding: 18px 26px 18px 18px; border-radius: 18px; background: #fff5e0; }
+  .partner-name b { color: var(--navy-900); font-size: 34px; letter-spacing: -0.05em; }
+  .partner-name small { color: var(--muted); font-size: 15px; font-weight: 700; }
+  .partner-avatar { width: 56px; height: 56px; display: grid; place-items: center; border-radius: 50%; background: var(--orange-500); color: #fff; font-size: 24px; font-weight: 800; }
   .peer-card { padding: 20px; border: 1px solid var(--line); border-top: 5px solid var(--blue-500); border-radius: 16px; background: var(--paper); }
   .peer-card--turn { border-top-color: #0eae89; }
   .peer-card h3 { display: flex; justify-content: space-between; margin: 0 0 12px; color: var(--navy-900); font-size: 20px; font-weight: 800; }
-  .peer-card h3 span { color: var(--blue-500); font-size: 16px; }
-  .peer-card--turn h3 span { color: #0eae89; }
-  .peer-chk { display: flex; align-items: flex-start; gap: 12px; padding: 12px 4px; border-top: 1px solid var(--line); color: var(--navy-800); font-size: 16px; font-weight: 600; line-height: 1.45; cursor: pointer; }
-  .peer-chk input { flex: none; width: 24px; height: 24px; margin: 0; accent-color: var(--blue-500); }
   .steps button { display: flex; align-items: center; gap: 10px; padding: 12px; border: 2px solid transparent; border-radius: 14px; background: var(--canvas); color: var(--ink); text-align: left; }
   .steps .dot { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border: 2px solid var(--line); border-radius: 50%; background: #fff; color: var(--muted); font-size: 16px; font-weight: 800; }
   .steps .txt { display: grid; min-width: 0; }
@@ -350,27 +351,27 @@
         <a class="secondary-button cloud-link" id="result-cloud" href="./words.html" hidden>☁ 우리 반 단어 구름 보기</a>
       </div>
       <div class="link-row">
-        <button type="button" class="primary-button" id="result-peer" data-action="open-peer" hidden>🤝 짝 피드백 하고 랭킹 도전</button>
         <button type="button" class="primary-button" data-action="back-run">▶ 다시 달리기</button>
         <button type="button" class="secondary-button" data-action="conf-after">🏁 수업 끝 자신감 매기기</button>
       </div>
     </section>
 
-    <!-- 4-2. 짝 피드백: 세 방식을 다 뛴 뒤, 랭킹 도전 전에 짝이 나를 보고 체크해요 -->
-    <section class="screen" data-screen="peer" hidden>
+    <!-- 1-2. 내 짝 확인: 수업 전 질문 다음, 달리기 전에 짝과 말로 줄 피드백을 봐요 -->
+    <section class="screen" data-screen="partner" hidden>
       <div class="screen-topbar">
         <button class="back-button" type="button" data-action="go-pick"><span aria-hidden="true">←</span> 학생 선택</button>
       </div>
       <div class="page-head" style="margin-top:40px">
-        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>짝 피드백</p>
-        <h1 id="peer-title"></h1>
-        <p>짝이 내가 뛰는 모습을 보고 잘 된 점에 체크해 줘요. 체크가 적은 쪽을 랭킹 도전에서 고쳐 봐요.</p>
+        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>내 짝 확인</p>
+        <h1 id="partner-title"></h1>
+        <p id="partner-note"></p>
       </div>
       <div class="panel">
-        <div class="peer-head"><span id="peer-who"></span><label>봐 준 친구 <select id="peer-by" aria-label="봐 준 친구"></select></label></div>
-        <div class="peer-cards" id="peer-cards"></div>
+        <div class="partner-names" id="partner-names"></div>
+        <h2 style="margin-top:26px">짝에게 이렇게 말해 주세요</h2>
+        <div class="peer-cards" id="partner-tips"></div>
         <div class="conf-actions">
-          <button type="button" class="primary-button" id="peer-save" data-action="peer-save">저장하고 랭킹 도전하러 가기</button>
+          <button type="button" class="primary-button" data-action="partner-done"><span aria-hidden="true">✓</span> 확인했어요, 달리러 가기</button>
         </div>
       </div>
     </section>
