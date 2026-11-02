@@ -25,6 +25,21 @@
   .reset-box p { margin: 0; color: var(--navy-900); font-size: 14px; line-height: 1.6; }
   .reset-box .pin-row { max-width: none; flex-wrap: wrap; }
   .reset-box select { min-height: 56px; padding: 0 14px; border: 2px solid var(--line); border-radius: 14px; font: inherit; font-size: 16px; background: #fff; }
+  .relay-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .relay-tools .secondary-button { min-width: 52px; padding: 0 18px; font-size: 18px; }
+  .relay-tools .secondary-button[data-action="relay-copy"] { font-size: 14px; }
+  .relay-tools strong { min-width: 48px; text-align: center; font-size: 20px; color: var(--navy-900); }
+  .relay-teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; margin-top: 16px; }
+  .relay-team { padding: 16px 18px; border: 1px solid var(--line); border-top: 5px solid #f07b2f; border-radius: 16px; background: var(--paper); }
+  .relay-team h3 { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 8px; color: var(--navy-900); font-size: 20px; font-weight: 800; }
+  .relay-team h3 small { color: var(--muted); font-size: 13px; }
+  .relay-team ol { margin: 0; padding-left: 20px; }
+  .relay-team li { padding: 6px 0; border-top: 1px solid var(--line); color: var(--navy-800); font-size: 15px; }
+  .relay-team li:first-child { border-top: 0; }
+  .relay-team .muted { color: var(--muted); font-size: 12px; }
+  .relay-team em { float: right; font-style: normal; font-family: 'Cascadia Mono', 'Roboto Mono', monospace; font-size: 13px; color: var(--navy-800); }
+  .relay-sum { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+  .relay-sum b { color: var(--navy-900); }
   .t-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
   .t-chip { padding: 8px 14px; border-radius: 999px; background: var(--canvas); color: var(--muted); font-size: 14px; font-weight: 800; }
   .t-chip strong { color: var(--navy-900); }
@@ -441,6 +456,18 @@
           </table>
         </div>
         <p class="panel-note">방식별 가장 빠른 기록(초)과 그때의 평균속력(m/s)이에요.</p>
+      </div>
+      <div class="panel" id="relay-panel">
+        <h2>🏃 계주 팀 편성</h2>
+        <p class="panel-note">학생마다 세 방식 중 가장 빠른 평균속력으로, 팀 힘이 비슷하고 남녀가 고르게 섞이도록 나눴어요. 견학·불참은 빠져요.</p>
+        <div class="relay-tools">
+          <button type="button" class="secondary-button" data-action="relay-less" aria-label="팀 하나 줄이기">−</button>
+          <strong id="relay-count">팀</strong>
+          <button type="button" class="secondary-button" data-action="relay-more" aria-label="팀 하나 늘리기">＋</button>
+          <button type="button" class="secondary-button" data-action="relay-copy">팀 명단 복사</button>
+        </div>
+        <div class="relay-teams" id="relay-teams"></div>
+        <p class="panel-note" id="relay-missing" hidden></p>
       </div>
     </section>
   </main>

@@ -689,6 +689,68 @@
         <td class="num"><span class="t-progress${r.done === r.total ? ' is-done' : ''}">${r.done}/${r.total}</span></td>
       </tr>`;
     }).join('') : '<tr><td class="muted" colspan="10">이 반 학생이 없어요.</td></tr>';
+    renderRelay();
+  }
+
+  // ---- 계주 팀 편성 (교사 현황) ----
+  // 학생마다 세 방식 중 가장 빠른 평균속력으로 나눠요. 남학생을 빠른 순으로 먼저, 그다음 여학생을 빠른 순으로
+  // '인원이 적은 팀 → 같은 성별이 적은 팀 → 합계 속력이 낮은 팀'에 하나씩 넣어 팀 힘과 남녀를 고르게 맞춰요.
+  const relayTeamCount = {};
+  function relayRunners(classNo) {
+    return students.filter((s) => s.class === classNo && !isOut(s)).map((s) => {
+      const best = bestSpeeds(s.student_id);
+      return { s, v: Math.max(0, ...Object.values(best)) };
+    });
+  }
+  function makeRelayTeams(runners, n) {
+    const teams = Array.from({ length: n }, () => ({ members: [], total: 0 }));
+    const isBoy = (r) => r.s.group_or_team.startsWith('남');
+    const fastFirst = (a, b) => b.v - a.v;
+    const order = [...runners.filter(isBoy).sort(fastFirst), ...runners.filter((r) => !isBoy(r)).sort(fastFirst)];
+    order.forEach((r) => {
+      const same = (t) => t.members.filter((m) => isBoy(m) === isBoy(r)).length;
+      const t = teams.reduce((best, t) => {
+        const k = [t.members.length, same(t), t.total];
+        const kb = [best.members.length, same(best), best.total];
+        for (let i = 0; i < 3; i++) { if (k[i] !== kb[i]) return k[i] < kb[i] ? t : best; }
+        return best;
+      });
+      t.members.push(r);
+      t.total += r.v;
+    });
+    teams.forEach((t) => t.members.sort((a, b) => b.v - a.v));
+    return teams;
+  }
+  function renderRelay() {
+    const all = relayRunners(state.classNo);
+    const runners = all.filter((r) => r.v > 0);
+    const missing = all.filter((r) => !r.v);
+    const auto = Math.max(1, Math.round(runners.length / 4));
+    const n = Math.min(Math.max(1, relayTeamCount[state.classNo] || auto), Math.max(1, runners.length));
+    $('relay-count').textContent = `${n}팀`;
+    if (!runners.length) {
+      $('relay-teams').innerHTML = '<p class="panel-note">아직 2차시 기록이 없어요. 학생들이 한 번 이상 달리면 팀을 나눌 수 있어요.</p>';
+      $('relay-missing').hidden = true;
+      return;
+    }
+    const teams = makeRelayTeams(runners, n);
+    $('relay-teams').innerHTML = teams.map((t, i) => {
+      const secs = t.members.reduce((a, m) => a + DISTANCE_M / m.v, 0);
+      return `<div class="relay-team">
+        <h3>${i + 1}팀 <small>${t.members.length}명</small></h3>
+        <ol>${t.members.map((m) => `<li><b>${escapeHtml(m.s.name)}</b> <span class="muted">${escapeHtml(m.s.number)}번 · ${escapeHtml(m.s.group_or_team)}</span><em>${m.v.toFixed(2)} m/s</em></li>`).join('')}</ol>
+        <p class="relay-sum">평균 <b>${(t.total / t.members.length).toFixed(2)} m/s</b> · 예상 합계 ${secs.toFixed(1)}초</p>
+      </div>`;
+    }).join('');
+    $('relay-missing').hidden = !missing.length;
+    $('relay-missing').textContent = missing.length ? `기록이 없어 빠진 학생: ${missing.sort(byNo).map((r) => r.s.name).join(', ')} (원하는 팀에 넣어 주세요)` : '';
+    state.relayText = teams.map((t, i) => `${i + 1}팀: ${t.members.map((m) => m.s.name).join(', ')}`).join('\n');
+  }
+  function changeRelayCount(delta) {
+    const runners = relayRunners(state.classNo).filter((r) => r.v > 0).length;
+    const cur = relayTeamCount[state.classNo] || Math.max(1, Math.round(runners / 4));
+    relayTeamCount[state.classNo] = Math.min(Math.max(1, cur + delta), Math.max(1, runners));
+    renderRelay();
   }
 
   function openTeacher() {
@@ -859,6 +921,9 @@
     else if (action === 'reset-open') { $('reset-form').hidden = false; $('reset-error').hidden = true; $('reset-pin').focus(); }
     else if (action === 'reset-close') $('reset-form').hidden = true;
     else if (action === 'lock-teacher') { teacherUnlocked = false; try { sessionStorage.removeItem(TEACHER_UNLOCK_KEY); } catch (e) { /* 무시 */ } renderTeacher(); }
+    else if (action === 'relay-less') changeRelayCount(-1);
+    else if (action === 'relay-more') changeRelayCount(1);
+    else if (action === 'relay-copy') navigator.clipboard.writeText(state.relayText || '').then(() => showToast('팀 명단을 복사했어요.'), () => showToast('복사하지 못했어요.'));
     else if (action === 'teacher-csv') navigator.clipboard.writeText(teacherCsv()).then(() => showToast('복사했어요. 스프레드시트에 붙여 넣으세요.'), () => showToast('복사하지 못했어요.'));
     else if (action === 'class-ai') classAi();
   });
