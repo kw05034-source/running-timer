@@ -13,6 +13,8 @@
     { key: '20x1', type: 'speed_20x1', label: '20m×1', turns: 1 }
   ];
   const METHOD_BY_TYPE = Object.fromEntries(METHODS.map((m) => [m.type, m]));
+  // 랭킹은 10m×2 하나로만 겨뤄요. 모두 같은 코스·같은 전환 3번이라 순위 차이가 곧 감속·재가속(전환 효율) 차이예요.
+  const RANK_METHOD = METHODS.find((m) => m.key === '10x2');
   const MIN_SEC = 3;
   const CHECK_MAX_SEC = 40;
   const ENTER_STOP_GUARD_MS = 300;
@@ -100,7 +102,7 @@
       { key: 'before', label: '수업 전', sub: '자신감·내 생각', done: c.before !== undefined },
       { key: 'partner', label: '내 짝 확인', sub: '말로 줄 피드백', done: !!partnerSeen[id] },
       ...METHODS.map((m) => ({ key: m.key, label: m.label, sub: `방향 전환 ${m.turns}번`, done: !!best[m.key] })),
-      { key: 'challenge', label: '랭킹 도전', sub: '한 방식 골라 다시', done: allThree && speedRecordsOf(id).length > METHODS.length },
+      { key: 'challenge', label: '랭킹 도전', sub: `${RANK_METHOD.label} 다시`, done: allThree && speedRecordsOf(id).filter((r) => r.activity_type === RANK_METHOD.type).length > 1 },
       { key: 'after', label: '수업 후', sub: '자신감·내 생각', done: !!c.after }
     ];
   }
@@ -146,9 +148,10 @@
     if (key === 'challenge') {
       openRun(id, true);
       state.challenge = true;
+      state.method = RANK_METHOD.key;
       renderRun();
       renderJourney();
-      showToast('가장 자신 있는 방식을 골라 한 번 더 달려 보세요!');
+      showToast(`전환 자세를 고쳐서 ${RANK_METHOD.label}로 한 번 더 달려 보세요!`);
       return;
     }
     openRun(id, true);
@@ -207,7 +210,7 @@
     $('timer-status-text').textContent = state.timer === 'running' ? '측정 중' : (state.method ? `${METHODS.find((m) => m.key === state.method).label} 준비` : '방식을 골라 주세요');
     $('start-btn').disabled = state.timer !== 'idle' || !state.method;
     $('stop-btn').disabled = state.timer !== 'running';
-    $('run-hint').textContent = state.timer === 'running' ? '도착하면 STOP(또는 Enter)!' : (state.method ? 'START(또는 Enter)를 누르면 출발이에요.' : (state.challenge ? '랭킹 도전! 랭킹은 방식마다 따로예요. 도전할 방식을 골라요.' : '먼저 이번에 뛸 방식을 고르세요.'));
+    $('run-hint').textContent = state.timer === 'running' ? '도착하면 STOP(또는 Enter)!' : (state.method ? 'START(또는 Enter)를 누르면 출발이에요.' : (state.challenge ? `랭킹 도전! ${RANK_METHOD.label}로 다시 뛰어요.` : '먼저 이번에 뛸 방식을 고르세요.'));
   }
 
   // ---- 자신감 (1~10) + 내 생각 ----
@@ -622,9 +625,9 @@
     const sum = classSummary();
     $('board-title').textContent = `${state.classNo}반 현황`;
     $('board-bars').innerHTML = barsHtml(sum.avg, sum.avgSec);
-    // 방식마다 따로 순위를 매겨요. 같은 방식끼리 겨뤄야 방향 전환 자세를 고친 만큼 순위가 올라가요.
+    // 10m×2 하나로만 순위를 매겨요. 같은 코스끼리 겨뤄야 방향 전환 자세를 고친 만큼 순위가 올라가요.
     const list = students.filter((s) => s.class === state.classNo);
-    $('rank-methods').innerHTML = METHODS.map((m) => {
+    $('rank-methods').innerHTML = [RANK_METHOD].map((m) => {
       const rows = list.map((s) => ({ s, v: bestSpeeds(s.student_id)[m.key] })).filter((r) => r.v).sort((a, b) => b.v - a.v);
       return `<div class="rank-method">
         <h3>${m.label} <small>방향 전환 ${m.turns}번</small></h3>

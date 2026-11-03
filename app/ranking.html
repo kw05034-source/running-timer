@@ -239,8 +239,8 @@
   const SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbw5mlmLxwSTXB7q7lsbqlGjWfkU9aTUwmwFSKeiK_Y9OyDX-eqx51AAkayE6qtAkCQS/exec';
   const REFRESH_INTERVAL_MS = 10000;
   const ACTIVITY_TYPE = 'obstacle_run';
-  // ?board=speed 로 열면 2차시 랭킹판: 방식(5m×4/10m×2/20m×1)마다 따로, 같은 방식끼리 가장 빠른 기록으로 순위를 매깁니다.
-  // 방향 전환이 적은 방식이 늘 빠르니, 한 줄로 섞으면 순위가 '방식 고르기'로 갈려서 방식별로 나눴어요. ?method=speed_10x2 로 탭을 고를 수 있어요.
+  // ?board=speed 로 열면 2차시 랭킹판: 10m×2 기록만으로, 가장 빠른 기록 순으로 순위를 매깁니다.
+  // 방향 전환이 적은 방식이 늘 빠르니, 모두 같은 10m×2(전환 3번)로 겨뤄야 전환 효율 차이가 순위에 드러나요.
   const SPEED_BOARD = new URLSearchParams(window.location.search).get('board') === 'speed';
   const SPEED_DISTANCE_M = 40;
   const SPEED_LABELS = { speed_5x4: '5m×4', speed_10x2: '10m×2', speed_20x1: '20m×1' };
@@ -275,7 +275,8 @@
     availableClasses: [],
     selectedClass: 'all',
     mode: 'best',
-    method: SPEED_LABELS[new URLSearchParams(window.location.search).get('method')] ? new URLSearchParams(window.location.search).get('method') : 'speed_5x4'
+    // 2차시 랭킹은 10m×2 하나로만 겨뤄요. (?method=speed_5x4 처럼 주소로 다른 방식을 볼 수는 있어요.)
+    method: SPEED_LABELS[new URLSearchParams(window.location.search).get('method')] ? new URLSearchParams(window.location.search).get('method') : 'speed_10x2'
   };
 
   function escapeHtml(value) {
@@ -529,7 +530,6 @@
   });
 
   if (SPEED_BOARD) {
-    methodSwitchEl.hidden = false;
     document.title = '움직임 효율 탐구 랭킹판 | 달리기';
     document.querySelector('.brand-name').textContent = '움직임 효율 탐구 랭킹판';
 

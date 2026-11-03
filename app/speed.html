@@ -25,7 +25,7 @@
   .reset-box p { margin: 0; color: var(--navy-900); font-size: 14px; line-height: 1.6; }
   .reset-box .pin-row { max-width: none; flex-wrap: wrap; }
   .reset-box select { min-height: 56px; padding: 0 14px; border: 2px solid var(--line); border-radius: 14px; font: inherit; font-size: 16px; background: #fff; }
-  .rank-methods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+  .rank-methods { display: grid; grid-template-columns: minmax(0, 640px); gap: 14px; margin-top: 14px; }
   .rank-method h3 { margin: 0 0 6px; color: var(--navy-900); font-size: 18px; font-weight: 800; }
   .rank-method h3 small { color: var(--muted); font-size: 12px; font-weight: 700; }
   @media (max-width: 900px) { .rank-methods { grid-template-columns: 1fr; } }
@@ -223,7 +223,7 @@
     <div class="journey" id="journey" hidden>
       <div class="who">
         <div class="who-main"><h2 id="journey-name"></h2><span class="meta" id="journey-meta"></span></div>
-        <div class="who-side"><span class="partner-chip" id="journey-partner" hidden></span><span class="progress-chip" id="journey-progress"></span><span class="rank-chip">🏆 방식별 랭킹에도 들어가요</span></div>
+        <div class="who-side"><span class="partner-chip" id="journey-partner" hidden></span><span class="progress-chip" id="journey-progress"></span><span class="rank-chip">🏆 10m×2 기록이 랭킹에 들어가요</span></div>
       </div>
       <nav class="steps" id="journey-steps" aria-label="오늘의 단계"></nav>
     </div>
@@ -412,8 +412,8 @@
         <p class="conf-line" id="board-conf"></p>
       </div>
       <div class="panel">
-        <h2>방식별 랭킹</h2>
-        <p class="panel-note">같은 방식끼리 겨뤄요. 방식마다 가장 빠른 기록으로 순위를 매겨요.</p>
+        <h2>10m×2 랭킹</h2>
+        <p class="panel-note">모두 같은 10m×2(방향 전환 3번)로 겨뤄요. 가장 빠른 10m×2 기록으로 순위를 매겨요.</p>
         <div class="rank-methods" id="rank-methods"></div>
       </div>
     </section>
