@@ -206,7 +206,7 @@
       </div>
     </div>
 
-    <div class="bus-banner" id="bus-banner">🚌 301번 버스 출발 <b id="bus-sec">10초</b> <span>최고기록이 이 시간 안이면 등교 성공, 넘기면 지각!</span></div>
+    <div class="bus-banner" id="bus-banner">🚌 301번 버스 출발 <b id="bus-sec">8.5초</b> <span>최고기록이 이 시간 안이면 등교 성공, 넘기면 지각!</span></div>
     <div id="banner"></div>
 
     <div class="gender-columns">
@@ -246,7 +246,7 @@
   const SPEED_LABELS = { speed_5x4: '5m×4', speed_10x2: '10m×2', speed_20x1: '20m×1' };
   // 301번 버스 기준 시간(초). 웜업 화면처럼 주소 끝에 ?t=9 를 붙이면 바꿀 수 있어요.
   const T_PARAM = Number(new URLSearchParams(location.search).get('t'));
-  const BUS_SEC = T_PARAM >= 3 && T_PARAM <= 120 ? T_PARAM : 10;
+  const BUS_SEC = T_PARAM >= 3 && T_PARAM <= 120 ? T_PARAM : 8.5;
   document.getElementById('bus-sec').textContent = `${BUS_SEC}초`;
 
   const classTabsEl = document.getElementById('class-tabs');
