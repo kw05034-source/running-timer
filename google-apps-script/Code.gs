@@ -1280,7 +1280,7 @@ function ruleSpeedCoach_(speeds, stride) {
   if (speeds['20x1'] && speeds['5x4']) {
     var loss = Math.round((1 - speeds['5x4'] / speeds['20x1']) * 100);
     if (loss >= 20) {
-      return '5m 왕복에서 속력이 ' + loss + '% 떨어졌어요. 방향을 바꾸기 2~3걸음 전부터 보폭을 줄이고 자세를 낮춰 보세요.';
+      return '5m 왕복에서 속력이 ' + loss + '% 떨어졌어요. 방향을 바꾸기 2~3걸음 전부터 자세를 낮춰 감속하고, 낮은 자세로 다시 가속해 보세요.';
     }
     return '방향 전환이 많아도 속력을 잘 지켰어요(차이 ' + loss + '%). 이번엔 출발할 때 몸을 낮추고 짧고 빠른 걸음으로 시작해 보세요.' +
       (stride ? ' (지금 보폭 약 ' + stride + 'm)' : '');
