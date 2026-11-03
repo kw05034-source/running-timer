@@ -1167,7 +1167,12 @@ function normalizeOptionalText_(value, maxLength) {
 }
 
 // ---- 속력 탐구 AI 코칭 ----
-// 학생 이름은 받지 않고, 방식별 평균속력(m/s) 숫자만 받습니다. (예전 화면이 보내는 보폭 값도 받아 둡니다)
+// 학생 이름은 받지 않고, 방식별 평균속력(m/s) 숫자만 받습니다. AI에게는 km/h로 바꿔 알려 줍니다. (예전 화면이 보내는 보폭 값도 받아 둡니다)
+
+// 앱 화면과 같게 AI에게도 km/h로 알려 줍니다. (m/s × 3.6, 소수 첫째 자리)
+function toKmh_(v) {
+  return Math.round(v * 36) / 10;
+}
 
 function normalizeSpeeds_(value) {
   var speeds = {};
@@ -1187,7 +1192,7 @@ function speedCoach_(request) {
     throwAppError_('INVALID_SPEEDS', '평균속력 값이 없습니다.', 400);
   }
   var lines = Object.keys(speeds).map(function (key) {
-    return SPEED_METHOD_LABELS[key] + ': ' + speeds[key] + ' m/s';
+    return SPEED_METHOD_LABELS[key] + ': ' + toKmh_(speeds[key]) + ' km/h';
   });
   if (stride) lines.push('20m 구간 평균 보폭: ' + stride + ' m');
   var prompt = [
@@ -1209,7 +1214,7 @@ function speedClass_(request) {
     throwAppError_('INVALID_SPEEDS', '반 평균속력 값이 없습니다.', 400);
   }
   var lines = Object.keys(avg).map(function (key) {
-    return SPEED_METHOD_LABELS[key] + ' 반 평균: ' + avg[key] + ' m/s';
+    return SPEED_METHOD_LABELS[key] + ' 반 평균: ' + toKmh_(avg[key]) + ' km/h';
   });
   var prompt = [
     '너는 중학교 2학년 체육 수업의 달리기 코치야. 반 학생 ' + runners + '명이 같은 40m를 세 가지 왕복 방식으로 달렸어.',
