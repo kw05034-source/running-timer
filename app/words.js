@@ -6,7 +6,7 @@
   // 수업 전·후: 기록 줄이기(같은 질문 두 번, 비교) / 수업 후만: 자기효능감은 어떨 때 높아지나, 이번 차시에서 깨달은 것
   // 이 화면은 그 단어를 반별 구름으로 보여 주기만 합니다. (입력은 speed.js의 openEfficacy)
   // 단원 탐구 진술(동작의 개선은 기능 발달을 가져오고 자기효능감에 영향을 준다)과 가까운 단어는 색으로 강조합니다.
-  // 단어는 SpeedWords 시트에 phase(before/after/efficacy/gain)로 저장되고, 고른 날짜(기본: 오늘, 오늘 없으면 그 반의 가장 최근 수업 날)에 낸 단어만 보여 줍니다.
+  // 단어는 SpeedWords 시트에 phase(before/after/efficacy/gain)로 저장되고, 날짜와 상관없이 그 반이 낸 단어를 모두 모아 보여 줍니다. (지우려면 교사 현황의 2차시 초기화)
   const SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbw5mlmLxwSTXB7q7lsbqlGjWfkU9aTUwmwFSKeiK_Y9OyDX-eqx51AAkayE6qtAkCQS/exec';
   const RECORD_Q = '같은 40m, 기록을 줄이려면 무엇이 중요할까?';
   const PHASES = [
@@ -31,7 +31,7 @@
 
   let words = [];
   // highlight: 탐구 진술 단어만 색으로 (끄면 멘티미터처럼 모든 단어가 여러 색)
-  const state = { classNo: 1, classes: [1], phase: 'before', highlight: false, day: null };
+  const state = { classNo: 1, classes: [1], phase: 'before', highlight: false };
 
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (v) => String(v).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
@@ -43,36 +43,8 @@
     return GROUPS.find((g) => g.keys.some((k) => c.includes(k))) || null;
   }
 
-  // 날짜는 크롬북 시간대 기준 'YYYY-MM-DD'로 묶어요.
-  const dayOf = (iso) => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '';
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
-  const todayKey = () => dayOf(new Date().toISOString());
-  const dayLabel = (key) => {
-    const [y, m, d] = key.split('-').map(Number);
-    const wd = '일월화수목금토'[new Date(y, m - 1, d).getDay()];
-    return key === todayKey() ? `오늘 ${m}/${d}(${wd})` : `${m}/${d}(${wd})`;
-  };
-  // 이 반에 단어가 있는 날짜들 (최근 날짜가 앞)
-  function classDays() {
-    const days = new Set(words.filter((w) => Number(w.class) === state.classNo).map((w) => dayOf(w.created_at)).filter(Boolean));
-    days.add(todayKey());
-    return [...days].sort().reverse();
-  }
-  // 고른 날짜가 없으면: 오늘 단어가 있으면 오늘, 없으면 그 반의 가장 최근 날
-  function currentDay() {
-    const days = classDays();
-    if (state.day && days.includes(state.day)) return state.day;
-    const today = todayKey();
-    const hasToday = words.some((w) => Number(w.class) === state.classNo && dayOf(w.created_at) === today);
-    return hasToday ? today : (days.find((d) => d !== today) || today);
-  }
-
   function wordsFor(phase) {
-    const day = currentDay();
-    return words.filter((w) => Number(w.class) === state.classNo && w.phase === phase && dayOf(w.created_at) === day);
+    return words.filter((w) => Number(w.class) === state.classNo && w.phase === phase);
   }
 
   // 같은 단어(띄어쓰기 무시)를 묶어 개수를 셉니다.
@@ -182,8 +154,6 @@
 
   function render() {
     $('class-tabs').innerHTML = state.classes.map((c) => `<button type="button" class="class-tab${c === state.classNo ? ' is-selected' : ''}" role="tab" aria-selected="${c === state.classNo}" data-class="${c}">${c}반</button>`).join('');
-    const day = currentDay();
-    $('day-tabs').innerHTML = classDays().map((d) => `<button type="button" class="group-tab${d === day ? ' is-selected' : ''}" role="tab" aria-selected="${d === day}" data-day="${d}">${dayLabel(d)}</button>`).join('');
     $('phase-tabs').innerHTML = PHASES.map((p) => `<button type="button" class="group-tab${p.key === state.phase ? ' is-selected' : ''}" role="tab" aria-selected="${p.key === state.phase}" data-phase="${p.key}">${p.label}</button>`).join('');
     const compare = state.phase === 'compare';
     $('ask-view').hidden = compare;
@@ -206,7 +176,7 @@
     }
     const phase = PHASES.find((p) => p.key === state.phase);
     const list = wordsFor(state.phase);
-    $('phase-label').textContent = `${state.classNo}반 · ${dayLabel(currentDay())} · ${phase.label}`;
+    $('phase-label').textContent = `${state.classNo}반 · ${phase.label}`;
     $('question-text').textContent = phase.q;
     $('cloud-title').textContent = `${state.classNo}반 ${phase.label} 단어 구름`;
     drawCloud($('cloud'), list, state.highlight);
@@ -245,13 +215,10 @@
 
   // ---- 입력 ----
   document.addEventListener('click', (event) => {
-    const t = event.target.closest('[data-class],[data-phase],[data-day],[data-action]');
+    const t = event.target.closest('[data-class],[data-phase],[data-action]');
     if (!t) return;
-    if (t.dataset.day) {
-      state.day = t.dataset.day;
-    } else if (t.dataset.class) {
+    if (t.dataset.class) {
       state.classNo = Number(t.dataset.class);
-      state.day = null;
       try { localStorage.setItem(CLASS_KEY, String(state.classNo)); } catch (e) { /* 무시 */ }
     } else if (t.dataset.phase) {
       state.phase = t.dataset.phase;
