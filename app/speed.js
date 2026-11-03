@@ -203,7 +203,10 @@
     const student = getStudent(state.studentId);
     if (!student) return;
     const best = bestSpeeds(student.student_id);
-    $('methods').innerHTML = METHODS.map((m) => `
+    // 랭킹 도전에서는 10m×2 하나만 보여 줘요.
+    const shown = state.challenge ? [RANK_METHOD] : METHODS;
+    $('run-heading').innerHTML = state.challenge ? `랭킹 도전!<br>${RANK_METHOD.label}로 다시 뛰어요` : '이번에 뛸 방식을<br>골라 주세요';
+    $('methods').innerHTML = shown.map((m) => `
       <button type="button" class="method-option${state.method === m.key ? ' is-selected' : ''}" data-method="${m.key}" ${state.timer === 'running' ? 'disabled' : ''}>
         <span><strong>${m.label}</strong> <small>방향 전환 ${m.turns}번</small></span>${best[m.key] ? `<span class="done">✓ ${fmtBoth(best[m.key])}</span>` : ''}</button>`).join('');
     const seconds = state.timer === 'running' ? (performance.now() - state.startedAt) / 1000 : state.elapsedMs / 1000;
@@ -914,7 +917,11 @@
       if ((confidence[sid] || {}).before !== undefined && !partnerSeen[sid]) { openPartner(sid); return; }
       openRun(sid); return;
     }
-    if (t.dataset.method) { state.method = t.dataset.method; renderRun(); renderJourney(); return; }
+    if (t.dataset.method) {
+      // 랭킹 도전에서는 10m×2만 잴 수 있어요.
+      if (state.challenge && t.dataset.method !== RANK_METHOD.key) { showToast(`랭킹 도전은 ${RANK_METHOD.label}만 잴 수 있어요.`); return; }
+      state.method = t.dataset.method; renderRun(); renderJourney(); return;
+    }
     if (t.dataset.step) { openStep(t.dataset.step); return; }
     if (t.dataset.conf) { pickConfidence(Number(t.dataset.conf)); return; }
     const action = t.dataset.action;
