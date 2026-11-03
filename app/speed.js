@@ -58,7 +58,9 @@
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (v) => String(v).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
   const speedOf = (sec) => DISTANCE_M / Number(sec);
-  const fmtSpeed = (v) => `${v.toFixed(2)} m/s`;
+  // 속력은 m/s로 계산하고, 화면에는 생활 속 속력(어린이보호구역 30km/h 등)과 비교하기 쉽게 km/h로 보여 줘요. (m/s × 3.6)
+  const kmh = (v) => (v * 3.6).toFixed(1);
+  const fmtSpeed = (v) => `${kmh(v)} km/h`;
   // 기록(초)과 평균속력을 같이 보여 줍니다. 한 사람 기록은 초 = 40m ÷ 평균속력이에요.
   const fmtBoth = (v, sec = DISTANCE_M / v) => `${sec.toFixed(2)}초 · ${fmtSpeed(v)}`;
 
@@ -188,7 +190,7 @@
           </div>
           <dl class="student-stats">
             <div class="student-stat"><dt>뛴 방식</dt><dd>${Object.keys(best).length}<small>/3</small></dd></div>
-            <div class="student-stat"><dt>최고 속력</dt><dd>${top ? top.toFixed(2) : '—'}<small>${top ? 'm/s' : ''}</small></dd></div>
+            <div class="student-stat"><dt>최고 속력</dt><dd>${top ? kmh(top) : '—'}<small>${top ? 'km/h' : ''}</small></dd></div>
           </dl>
           <div class="method-chips">${chips}</div>
         </button>
@@ -687,7 +689,7 @@
       `수업 후 자신감까지 <strong>${afters.length}</strong>명`,
       `자신감 평균 <strong>${mean(befores)} → ${mean(afters)}</strong>점`
     ].map((t) => `<span class="t-chip">${t}</span>`).join('');
-    const cell = (v) => (v ? `${(DISTANCE_M / v).toFixed(2)}초<small>${v.toFixed(2)} m/s</small>` : '<span class="muted">—</span>');
+    const cell = (v) => (v ? `${(DISTANCE_M / v).toFixed(2)}초<small>${fmtSpeed(v)}</small>` : '<span class="muted">—</span>');
     $('teacher-rows').innerHTML = rows.length ? rows.map((r) => {
       const diff = r.c.before && r.c.after ? r.c.after - r.c.before : null;
       return `<tr>
@@ -749,8 +751,8 @@
       const secs = t.members.reduce((a, m) => a + DISTANCE_M / m.v, 0);
       return `<div class="relay-team">
         <h3>${i + 1}팀 <small>${t.members.length}명</small></h3>
-        <ol>${t.members.map((m) => `<li><b>${escapeHtml(m.s.name)}</b> <span class="muted">${escapeHtml(m.s.number)}번 · ${escapeHtml(m.s.group_or_team)}</span><em>${m.v.toFixed(2)} m/s</em></li>`).join('')}</ol>
-        <p class="relay-sum">평균 <b>${(t.total / t.members.length).toFixed(2)} m/s</b> · 예상 합계 ${secs.toFixed(1)}초</p>
+        <ol>${t.members.map((m) => `<li><b>${escapeHtml(m.s.name)}</b> <span class="muted">${escapeHtml(m.s.number)}번 · ${escapeHtml(m.s.group_or_team)}</span><em>${fmtSpeed(m.v)}</em></li>`).join('')}</ol>
+        <p class="relay-sum">평균 <b>${fmtSpeed(t.total / t.members.length)}</b> · 예상 합계 ${secs.toFixed(1)}초</p>
       </div>`;
     }).join('');
     $('relay-missing').hidden = !missing.length;
@@ -827,8 +829,8 @@
   }
 
   function teacherCsv() {
-    const head = ['번호', '이름', '조', '수업 전 자신감', ...METHODS.flatMap((m) => [`${m.label} 기록(초)`, `${m.label} 평균속력(m/s)`]), '달린 횟수', '수업 후 자신감', '자신감 변화'];
-    const lines = teacherRows().map((r) => [r.s.number, r.s.name, r.s.group_or_team, r.c.before || '', ...METHODS.flatMap((m) => (r.best[m.key] ? [(DISTANCE_M / r.best[m.key]).toFixed(2), r.best[m.key].toFixed(2)] : ['', ''])), r.runs, r.c.after || '', r.c.before && r.c.after ? r.c.after - r.c.before : '']);
+    const head = ['번호', '이름', '조', '수업 전 자신감', ...METHODS.flatMap((m) => [`${m.label} 기록(초)`, `${m.label} 평균속력(km/h)`]), '달린 횟수', '수업 후 자신감', '자신감 변화'];
+    const lines = teacherRows().map((r) => [r.s.number, r.s.name, r.s.group_or_team, r.c.before || '', ...METHODS.flatMap((m) => (r.best[m.key] ? [(DISTANCE_M / r.best[m.key]).toFixed(2), kmh(r.best[m.key])] : ['', ''])), r.runs, r.c.after || '', r.c.before && r.c.after ? r.c.after - r.c.before : '']);
     return [head, ...lines].map((row) => row.join('\t')).join('\n');
   }
 
