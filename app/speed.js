@@ -59,7 +59,7 @@
   const escapeHtml = (v) => String(v).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
   const speedOf = (sec) => DISTANCE_M / Number(sec);
   // 속력은 m/s로 계산하고, 화면에는 생활 속 속력(어린이보호구역 30km/h 등)과 비교하기 쉽게 km/h로 보여 줘요. (m/s × 3.6)
-  const kmh = (v) => (v * 3.6).toFixed(1);
+  const kmh = (v) => (v * 3.6).toFixed(2);
   const fmtSpeed = (v) => `${kmh(v)} km/h`;
   // 기록(초)과 평균속력을 같이 보여 줍니다. 한 사람 기록은 초 = 40m ÷ 평균속력이에요.
   const fmtBoth = (v, sec = DISTANCE_M / v) => `${sec.toFixed(2)}초 · ${fmtSpeed(v)}`;

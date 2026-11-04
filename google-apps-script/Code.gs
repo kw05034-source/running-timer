@@ -1169,9 +1169,9 @@ function normalizeOptionalText_(value, maxLength) {
 // ---- 속력 탐구 AI 코칭 ----
 // 학생 이름은 받지 않고, 방식별 평균속력(m/s) 숫자만 받습니다. AI에게는 km/h로 바꿔 알려 줍니다. (예전 화면이 보내는 보폭 값도 받아 둡니다)
 
-// 앱 화면과 같게 AI에게도 km/h로 알려 줍니다. (m/s × 3.6, 소수 첫째 자리)
+// 앱 화면과 같게 AI에게도 km/h로 알려 줍니다. (m/s × 3.6, 소수 둘째 자리)
 function toKmh_(v) {
-  return Math.round(v * 36) / 10;
+  return Math.round(v * 360) / 100;
 }
 
 function normalizeSpeeds_(value) {
