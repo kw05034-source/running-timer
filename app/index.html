@@ -882,14 +882,14 @@
     sTime.textContent = t.full;
 
     const left = TARGET_MS - ms;
-    total.textContent = failed
+    const over = failed || ms > TARGET_MS;
+    total.textContent = over
       ? '+' + (-left / 1000).toFixed(2) + ' 초 초과'
       : (ms === 0 ? '목표 ' + (TARGET_MS / 1000) + '초' : Math.max(0, left / 1000).toFixed(2) + '초 남음');
 
     bar.style.width = Math.min(100, (ms / TARGET_MS) * 100) + '%';
-    track.classList.toggle('over', failed);
+    track.classList.toggle('over', over);
 
-    if (running && !failed && ms >= TARGET_MS) { fail(); return; }
     if (running) raf = requestAnimationFrame(paint);
   }
 
@@ -960,7 +960,7 @@
     sync();
   }
 
-  // 정지 = 도착. 목표 시간 안이면 성공, 넘기면 paint()에서 이미 실패 처리됩니다.
+  // 정지 = 도착. 목표 시간이 지나도 계속 재다가, 정지한 기록이 목표 안이면 성공, 넘기면 탑승 실패.
   const TEST_PRESS_MS = 2000;
   function finish(){
     if (!running) return;
@@ -968,7 +968,8 @@
     stop();
     // 2초 안에 정지하면 부저 테스트로 보고, 결과 없이 0초 대기 상태로 돌아갑니다.
     if (base < TEST_PRESS_MS) { resetAll(); stateEl.textContent = sState.textContent = '부저 확인 ✓'; return; }
-    if (!failed && base > 0 && base < TARGET_MS) succeed();
+    if (base >= TARGET_MS) fail();
+    else if (base > 0) succeed();
   }
 
   toggle.addEventListener('click', () => {
