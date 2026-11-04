@@ -930,7 +930,8 @@
     else if (action === 'save') save();
     else if (action === 'cancel') { state.timer = 'idle'; state.elapsedMs = 0; state.pending = null; setScreen('run'); renderRun(); showToast('저장하지 않았어요.'); }
     else if (action === 'open-result') openResult();
-    else if (action === 'back-run') openRun(state.studentId);
+    // 랭킹 도전에서 저장했으면 '다시 달리기'도 랭킹 도전(10m×2)으로 이어져요.
+    else if (action === 'back-run') { if (state.challenge) openStep('challenge'); else openRun(state.studentId); }
         else if (action === 'conf-skip') skipConfidence();
     else if (action === 'conf-after') openConfidence(state.studentId, 'after');
     else if (action === 'partner-done') finishPartner();
