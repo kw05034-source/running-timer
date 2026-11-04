@@ -29,6 +29,7 @@
   .rank-method h3 { margin: 0 0 6px; color: var(--navy-900); font-size: 18px; font-weight: 800; }
   .rank-method h3 small { color: var(--muted); font-size: 12px; font-weight: 700; }
   @media (max-width: 900px) { .rank-methods { grid-template-columns: 1fr; } }
+  .run-result { margin-top: 28px; }
   .relay-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
   .relay-tools .secondary-button { min-width: 52px; padding: 0 18px; font-size: 18px; }
   .relay-tools .secondary-button[data-action="relay-copy"] { font-size: 14px; }
@@ -294,9 +295,6 @@
           <h1 class="run-heading" id="run-heading">이번에 뛸 방식을<br>골라 주세요</h1>
           <div class="method-list" id="methods"></div>
           <p class="timer-instruction" id="run-hint"></p>
-          <div class="link-row">
-            <button type="button" class="secondary-button" data-action="open-result">내 결과 보기</button>
-          </div>
         </div>
         <div class="timer-card" id="timer-card" aria-label="달리기 타이머">
           <div class="timer-status"><span class="status-pip" aria-hidden="true"></span><span id="timer-status-text">측정 전</span></div>
@@ -307,6 +305,16 @@
           </div>
           <p class="timer-note"><span aria-hidden="true">i</span> Enter 키로도 START·STOP 할 수 있어요.</p>
         </div>
+      </div>
+      <!-- 내 결과를 달리기 화면 아래에 바로 펼쳐 둬요. (AI 코칭을 버튼 하나로 바로 볼 수 있게) -->
+      <div class="panel run-result" id="run-result" hidden>
+        <h2>내 결과 · 방식별 평균속력</h2>
+        <p class="panel-note">방식마다 가장 빠른 기록이에요. 주황색이 가장 빨라요.</p>
+        <div class="bars" id="run-bars"></div>
+        <div class="link-row">
+          <button type="button" class="ai-button" id="coach-run-btn" data-action="coach-run">🤖 AI 한 줄 코칭</button>
+        </div>
+        <div class="coach" id="coach-run-box" hidden></div>
       </div>
     </section>
 
