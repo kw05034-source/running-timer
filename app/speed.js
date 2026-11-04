@@ -203,6 +203,11 @@
     const student = getStudent(state.studentId);
     if (!student) return;
     const best = bestSpeeds(student.student_id);
+    // 아래에 내 결과를 펼쳐 둬요. 기록이 생기면 막대가 바로 바뀌어요.
+    const hasRun = Object.keys(best).length > 0;
+    $('run-result').hidden = !hasRun;
+    const bars = hasRun ? barsHtml(best) : '';
+    if ($('run-bars').dataset.html !== bars) { $('run-bars').innerHTML = bars; $('run-bars').dataset.html = bars; }
     // 랭킹 도전에서는 10m×2 하나만 보여 줘요.
     const shown = state.challenge ? [RANK_METHOD] : METHODS;
     $('run-heading').innerHTML = state.challenge ? `랭킹 도전!<br>${RANK_METHOD.label}로 다시 뛰어요` : '이번에 뛸 방식을<br>골라 주세요';
@@ -444,6 +449,7 @@
 
   function openRun(studentId, skipConfidenceCheck) {
     if (!skipConfidenceCheck && (confidence[studentId] || {}).before === undefined) { openConfidence(studentId, 'before'); return; }
+    if (state.studentId !== studentId) $('coach-run-box').hidden = true;
     state.studentId = studentId;
     state.method = null;
     state.challenge = false;
@@ -561,26 +567,26 @@
     setScreen('result');
   }
 
-  async function coach() {
+  async function coach(btnId = 'coach-btn', boxId = 'coach-box') {
     const speeds = bestSpeeds(state.studentId);
     if (!speeds['5x4'] && !speeds['10x2'] && !speeds['20x1']) {
       showToast('먼저 한 가지 이상 달려 주세요.');
       return;
     }
-    $('coach-btn').disabled = true;
-    $('coach-box').hidden = false;
-    $('coach-box').textContent = 'AI가 기록을 살펴보는 중이에요...';
+    $(btnId).disabled = true;
+    $(boxId).hidden = false;
+    $(boxId).textContent = 'AI가 기록을 살펴보는 중이에요...';
     // 이름은 보내지 않고 숫자만 보냅니다.
     const body = { type: 'speed_coach', speeds: roundAll(speeds) };
     try {
       const res = await postJson(body);
       if (!res.ok) throw new Error(res.error?.message);
-      showCoach('coach-box', res.text, res.source);
+      showCoach(boxId, res.text, res.source);
     } catch (error) {
       console.warn('AI 코칭 실패, 기본 코칭을 보여 줘요.', error);
-      showCoach('coach-box', localCoach(speeds), 'rule');
+      showCoach(boxId, localCoach(speeds), 'rule');
     } finally {
-      $('coach-btn').disabled = false;
+      $(btnId).disabled = false;
     }
   }
 
@@ -936,6 +942,7 @@
     else if (action === 'conf-after') openConfidence(state.studentId, 'after');
     else if (action === 'partner-done') finishPartner();
     else if (action === 'coach') coach();
+    else if (action === 'coach-run') coach('coach-run-btn', 'coach-run-box');
     else if (action === 'go-pick') { setScreen('pick'); renderPick(); }
     else if (action === 'go-board') openBoard();
     else if (action === 'go-teacher') openTeacher();
